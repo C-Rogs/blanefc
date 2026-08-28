@@ -88,7 +88,7 @@ body::after {
 }
 
 .topbar {
-  padding: calc(14px + env(safe-area-inset-top)) 72px 10px 18px;
+  padding: calc(14px + env(safe-area-inset-top)) 148px 10px 18px;
 }
 
 .main {
@@ -125,7 +125,7 @@ body::after {
 }
 
 .picker-head {
-  padding: 24px 72px 16px 0;
+  padding: 24px 148px 16px 0;
 }
 
 .picker-head .club {
@@ -252,6 +252,11 @@ h3 {
 
 .field::placeholder {
   color: #6f695e;
+}
+
+textarea.field.area {
+  min-height: 96px;
+  resize: vertical;
 }
 
 .card {
@@ -699,6 +704,7 @@ h3 {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  cursor: pointer;
 }
 
 .chip-ok {
@@ -810,11 +816,21 @@ h3 {
   background: var(--red);
 }
 
-.help-btn {
+.corner-btns {
   position: fixed;
   top: calc(12px + env(safe-area-inset-top));
   right: max(12px, calc(50vw - 240px + 12px));
   z-index: 40;
+  display: flex;
+  gap: 6px;
+}
+
+.corner-btns[hidden] {
+  display: none;
+}
+
+.help-btn {
+  position: static;
   width: auto;
   height: 32px;
   padding: 0 10px;
@@ -829,10 +845,6 @@ h3 {
   text-transform: uppercase;
   line-height: 1;
   cursor: pointer;
-}
-
-.help-btn[hidden] {
-  display: none;
 }
 
 .help-scrim {

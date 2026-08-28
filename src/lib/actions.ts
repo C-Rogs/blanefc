@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { readDb, updateDb } from "./db";
 import { formatDateRange, formatDay } from "./format";
+import { createClubIssue } from "./linear";
 import { buildSquad, claimSpot, dropPlayer, openSpots, spotsFor } from "./logic";
-import type { Format } from "./types";
+import type { Format, RequestKind } from "./types";
 
 function slugName(name: string): string {
   return name
@@ -326,4 +327,21 @@ export async function adminDrop(
   });
   revalidatePath("/");
   return {};
+}
+
+export async function submitClubRequest(input: {
+  kind: RequestKind;
+  title: string;
+  details: string;
+  fromName: string;
+}): Promise<{ error?: string }> {
+  const kind = input.kind === "feature" ? "feature" : "bug";
+  const title = input.title.trim().slice(0, 80);
+  const details = input.details.trim().slice(0, 1500);
+  const fromName = input.fromName.trim().slice(0, 80);
+  if (title.length < 3) return { error: "Give it a short title." };
+  if (details.length < 8) return { error: "Say what you want in a sentence or two." };
+  if (fromName.length < 2) return { error: "Put your name on it." };
+  const res = await createClubIssue({ kind, title, details, fromName });
+  return res.error ? { error: res.error } : {};
 }

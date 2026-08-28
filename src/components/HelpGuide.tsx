@@ -3,44 +3,96 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import { SITE_NAME } from "@/lib/brand";
+import { RequestForm } from "./RequestForm";
 
-export function HelpGuide({ spots = 12 }: { spots?: number }) {
-  const [open, setOpen] = useState(false);
+type Panel = "help" | "feedback" | null;
+
+export function HelpGuide({
+  spots = 12,
+  fromName,
+}: {
+  spots?: number;
+  fromName?: string;
+}) {
+  const [panel, setPanel] = useState<Panel>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const openRef = useRef<HTMLButtonElement>(null);
+  const howRef = useRef<HTMLButtonElement>(null);
+  const feedbackRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
 
   useEffect(() => {
-    if (!open) return;
+    if (!panel) return;
     const prev = document.body.style.overflow;
-    const how = openRef.current;
+    const restore = panel === "feedback" ? feedbackRef.current : howRef.current;
     document.body.style.overflow = "hidden";
     closeRef.current?.focus();
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") setPanel(null);
     }
     document.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       document.removeEventListener("keydown", onKey);
-      how?.focus();
+      restore?.focus();
     };
-  }, [open]);
+  }, [panel]);
 
   return (
     <>
-      <button
-        ref={openRef}
-        type="button"
-        className="help-btn"
-        hidden={open}
-        aria-label={`How ${SITE_NAME} works`}
-        onClick={() => setOpen(true)}
-      >
-        How
-      </button>
-      {open && (
-        <div className="help-scrim" onClick={() => setOpen(false)}>
+      <div className="corner-btns" hidden={panel !== null}>
+        <button
+          ref={feedbackRef}
+          type="button"
+          className="help-btn"
+          aria-label="Send feedback"
+          onClick={() => setPanel("feedback")}
+        >
+          Feedback
+        </button>
+        <button
+          ref={howRef}
+          type="button"
+          className="help-btn"
+          aria-label={`How ${SITE_NAME} works`}
+          onClick={() => setPanel("help")}
+        >
+          How
+        </button>
+      </div>
+      {panel === "feedback" && (
+        <div className="help-scrim" onClick={() => setPanel(null)}>
+          <div
+            className="help-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="help-head">
+              <div>
+                <h2 id={titleId} className="display-sm">
+                  Feedback
+                </h2>
+              </div>
+              <button
+                ref={closeRef}
+                type="button"
+                className="help-close"
+                aria-label="Close"
+                onClick={() => setPanel(null)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="help-body">
+              <p className="lede">Bug if it&apos;s broken. Idea if you want something new. Lands with Cam.</p>
+              <RequestForm fromName={fromName} />
+            </div>
+          </div>
+        </div>
+      )}
+      {panel === "help" && (
+        <div className="help-scrim" onClick={() => setPanel(null)}>
           <div
             className="help-panel"
             role="dialog"
@@ -59,7 +111,7 @@ export function HelpGuide({ spots = 12 }: { spots?: number }) {
                 type="button"
                 className="help-close"
                 aria-label="Close"
-                onClick={() => setOpen(false)}
+                onClick={() => setPanel(null)}
               >
                 Close
               </button>
@@ -71,6 +123,7 @@ export function HelpGuide({ spots = 12 }: { spots?: number }) {
                 have to pick your name again.
               </p>
 
+              <h3>How it works</h3>
               <ul>
                 <li>
                   <strong>Home</strong>: next game, pay, drop out

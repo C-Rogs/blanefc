@@ -20,6 +20,6 @@
     "enabled": true,
   },
   "secrets": {
-    "required": ["DATABASE_URL"],
+    "required": ["DATABASE_URL", "LINEAR_API_KEY"],
   },
 }

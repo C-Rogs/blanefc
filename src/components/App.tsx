@@ -110,7 +110,7 @@ export function App({ db }: { db: PublicDb }) {
 
   return (
     <div className="app">
-      <HelpGuide spots={db.settings.spots5s} />
+      <HelpGuide spots={db.settings.spots5s} fromName={player.name} />
       <header className="topbar">
         <div className="brand">
           <Crest />

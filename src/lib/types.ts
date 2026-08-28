@@ -1,4 +1,5 @@
 export type Format = "5s" | "7s";
+export type RequestKind = "bug" | "feature";
 
 export type Player = {
   id: string;
