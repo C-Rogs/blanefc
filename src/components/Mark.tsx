@@ -4,10 +4,15 @@ export function Crest({ size = 28 }: { size?: number }) {
   return (
     <span
       className="crest"
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.5) }}
+      style={{
+        width: size,
+        height: size,
+        fontSize: Math.round(size * 0.38),
+        letterSpacing: "-0.06em",
+      }}
       aria-hidden
     >
-      B
+      NK
     </span>
   );
 }

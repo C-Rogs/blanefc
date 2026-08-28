@@ -100,7 +100,7 @@ export function seedDb(): AppDb {
 
   return {
     settings: {
-      clubName: "BlaneFC",
+      clubName: "No Knees FC",
       venueName: "PlayFootball Mile End",
       venueMapsUrl: "https://maps.app.goo.gl/HtJNtaiHbvi9BARm7",
       kickoff: "19:00",

@@ -107,7 +107,7 @@ body::after {
   font-family: var(--font-barlow), sans-serif;
   font-size: 22px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   line-height: 1;
 }
@@ -129,7 +129,7 @@ body::after {
 }
 
 .picker-head .club {
-  font-size: 32px;
+  font-size: 28px;
 }
 
 .eyebrow {

@@ -1,4 +1,4 @@
-# BlaneFC
+# No Knees FC
 
 WhatsApp-first site for the 5-a-side group. Paste the live link in the chat. No app store. No login. Tap your name.
 
@@ -6,7 +6,7 @@ WhatsApp-first site for the 5-a-side group. Paste the live link in the chat. No 
 
 Works on iPhone and Android (Safari, Chrome, or WhatsApp’s in-app browser). WhatsApp often wipes cookies, so identity lives in that phone’s local storage only. Each person taps their own name on their own phone.
 
-If an old home-screen shortcut still says the old shortcut or No Knees, delete it and add **BlaneFC** again from the browser menu. Hard-refresh the tab if the title looks stale.
+If an old home-screen shortcut still says BlaneFC or the old shortcut, delete it and add **No Knees FC** again from the browser menu. Hard-refresh the tab if the title looks stale.
 
 ---
 
