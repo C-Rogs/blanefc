@@ -42,7 +42,24 @@ export function todayIso(now = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+export function isPhoneName(name: string): boolean {
+  return name.replace(/\D/g, "").length >= 8;
+}
+
+export function phoneDigits(value: string): string {
+  let digits = value.replace(/\D/g, "");
+  if (digits.startsWith("44") && digits.length > 10) digits = digits.slice(2);
+  if (digits.startsWith("0")) digits = digits.slice(1);
+  return digits;
+}
+
+export function shortName(name: string): string {
+  if (isPhoneName(name)) return name.replace(/\D/g, "").slice(-4);
+  return name.trim().split(/\s+/)[0] ?? name;
+}
+
 export function initials(name: string): string {
+  if (isPhoneName(name)) return name.replace(/\D/g, "").slice(-4);
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();

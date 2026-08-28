@@ -18,7 +18,7 @@ function bankBlock(db: PublicDb): string {
   if (sortCode) lines.push(`Sort code: ${sortCode}`);
   if (accountNumber) lines.push(`Account number: ${accountNumber}`);
   if (!sortCode && !accountNumber) {
-    lines.push("(Oli will drop bank details here)");
+    lines.push("(Bank details go here)");
   }
   return lines.join("\n");
 }

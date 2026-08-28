@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
+import { SITE_NAME } from "@/lib/brand";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "No Knees FC",
-    short_name: "No Knees",
+    name: SITE_NAME,
+    short_name: SITE_NAME,
     description: "Vote, see who's in, and pay for 5-a-side.",
     start_url: "/",
     display: "standalone",

@@ -13,14 +13,16 @@ import {
   unlockOrganiser,
   updateSettings,
 } from "@/lib/actions";
-import { formatDay, formatMoney } from "@/lib/format";
+import { formatDay, formatMoney, shortName } from "@/lib/format";
 import {
+  activePlayers,
   inSquad,
   lockedOption,
   nextGame,
   openPolls,
   playerName,
   unpaid,
+  upcomingLocked,
   votesForOption,
   waitlist,
 } from "@/lib/logic";
@@ -31,7 +33,7 @@ import {
   pollMessage,
   spotFreeMessage,
 } from "@/lib/messages";
-import type { PublicDb } from "@/lib/types";
+import type { Poll, PublicDb } from "@/lib/types";
 import { ActionButton, CopyButton, WhatsAppButton } from "./Buttons";
 
 export function AdminTab({
@@ -51,11 +53,13 @@ export function AdminTab({
       <WhatsAppPack db={db} />
       <LockPanel db={db} pin={pin} />
       <CreatePoll pin={pin} />
-      <GameAdmin db={db} pin={pin} />
+      {upcomingLocked(db).map((poll) => (
+        <GameAdmin key={poll.id} db={db} pin={pin} poll={poll} />
+      ))}
       <PlayersAdmin db={db} pin={pin} />
       <SettingsForm db={db} pin={pin} />
       <button type="button" className="btn btn-ghost" onClick={onLock}>
-        Lock organiser
+        Lock admin
       </button>
     </div>
   );
@@ -67,11 +71,10 @@ function PinGate({ onUnlock }: { onUnlock: (pin: string) => void }) {
   const [pending, start] = useTransition();
   return (
     <section className="card">
-      <p className="eyebrow">Organiser</p>
-      <h2>Oli&apos;s tools</h2>
+      <p className="eyebrow">Admin</p>
+      <h2>Organiser tools</h2>
       <p className="muted">
-        PIN keeps the rest of the lads from editing polls and payments. Ask Oli if you
-        need it.
+        PIN keeps the rest of the lads from editing polls and payments.
       </p>
       <form
         className="stack"
@@ -86,8 +89,9 @@ function PinGate({ onUnlock }: { onUnlock: (pin: string) => void }) {
       >
         <input
           className="field"
+          type="password"
           inputMode="numeric"
-          autoComplete="off"
+          autoComplete="one-time-code"
           placeholder="PIN"
           value={pin}
           onChange={(e) => setPin(e.target.value)}
@@ -102,16 +106,19 @@ function PinGate({ onUnlock }: { onUnlock: (pin: string) => void }) {
 }
 
 function WhatsAppPack({ db }: { db: PublicDb }) {
-  const game = nextGame(db);
+  const games = upcomingLocked(db);
+  const next = nextGame(db);
   const poll = openPolls(db)[0];
   const items: { label: string; text: string }[] = [];
   if (poll) items.push({ label: "New poll", text: pollMessage(db, poll) });
-  if (game) {
-    items.push({ label: "Date locked", text: lockedMessage(db, game) });
-    items.push({ label: "Chase unpaid", text: paymentMessage(db, game) });
-    items.push({ label: "Spot free", text: spotFreeMessage(db, game) });
-    items.push({ label: "Match day", text: matchDayMessage(db, game) });
+  for (const game of games) {
+    const option = lockedOption(game);
+    const day = option ? formatDay(option.date) : "locked";
+    items.push({ label: `Date locked · ${day}`, text: lockedMessage(db, game) });
+    items.push({ label: `Chase unpaid · ${day}`, text: paymentMessage(db, game) });
+    items.push({ label: `Spot free · ${day}`, text: spotFreeMessage(db, game) });
   }
+  if (next) items.push({ label: "Match day", text: matchDayMessage(db, next) });
   if (items.length === 0) return null;
   return (
     <section className="card">
@@ -156,7 +163,7 @@ function LockPanel({ db, pin }: { db: PublicDb; pin: string }) {
                     {formatDay(option.date)} · {votes.length} votes
                   </strong>
                   <p className="tiny muted">
-                    {votes.map((v) => playerName(db, v.playerId).split(" ")[0]).join(" · ") ||
+                    {votes.map((v) => shortName(playerName(db, v.playerId))).join(" · ") ||
                       "No votes yet"}
                   </p>
                 </div>
@@ -248,15 +255,23 @@ function CreatePoll({ pin }: { pin: string }) {
   );
 }
 
-function GameAdmin({ db, pin }: { db: PublicDb; pin: string }) {
+function GameAdmin({
+  db,
+  pin,
+  poll: game,
+}: {
+  db: PublicDb;
+  pin: string;
+  poll: Poll;
+}) {
   const router = useRouter();
-  const game = nextGame(db);
-  if (!game) return null;
   const option = lockedOption(game);
-  if (!option) return null;
   const [pitch, setPitchValue] = useState(game.pitch ?? "");
   const [guest, setGuest] = useState("");
+  const [guestError, setGuestError] = useState<string | null>(null);
+  const [pitchError, setPitchError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  if (!option) return null;
 
   return (
     <section className="card">
@@ -267,8 +282,9 @@ function GameAdmin({ db, pin }: { db: PublicDb; pin: string }) {
         onSubmit={(e) => {
           e.preventDefault();
           start(async () => {
-            await setPitch(pin, game.id, pitch);
-            router.refresh();
+            const res = await setPitch(pin, game.id, pitch);
+            setPitchError(res.error ?? null);
+            if (!res.error) router.refresh();
           });
         }}
       >
@@ -282,6 +298,7 @@ function GameAdmin({ db, pin }: { db: PublicDb; pin: string }) {
           Save
         </button>
       </form>
+      {pitchError && <p className="error tiny">{pitchError}</p>}
 
       <h3 className="list-head">Paid?</h3>
       <ul className="person-list">
@@ -307,9 +324,22 @@ function GameAdmin({ db, pin }: { db: PublicDb; pin: string }) {
         ))}
       </ul>
       {waitlist(game).length > 0 && (
-        <p className="muted tiny">
-          Waitlist: {waitlist(game).map((m) => playerName(db, m.playerId)).join(", ")}
-        </p>
+        <>
+          <h3 className="list-head">Waitlist</h3>
+          <ul className="person-list">
+            {waitlist(game).map((m) => (
+              <li key={m.playerId} className="person">
+                <span className="person-name">
+                  {playerName(db, m.playerId)}
+                  {m.waitlistOrder ? ` · #${m.waitlistOrder}` : ""}
+                </span>
+                <ActionButton variant="ghost" onClick={() => adminDrop(pin, game.id, m.playerId)}>
+                  Drop
+                </ActionButton>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {unpaid(game).length > 0 && (
         <p className="muted tiny">
@@ -323,6 +353,7 @@ function GameAdmin({ db, pin }: { db: PublicDb; pin: string }) {
           e.preventDefault();
           start(async () => {
             const res = await addGuest(pin, game.id, guest);
+            setGuestError(res.error ?? null);
             if (!res.error) setGuest("");
             router.refresh();
           });
@@ -338,6 +369,7 @@ function GameAdmin({ db, pin }: { db: PublicDb; pin: string }) {
           Add guest
         </button>
       </form>
+      {guestError && <p className="error tiny">{guestError}</p>}
     </section>
   );
 }
@@ -348,11 +380,7 @@ function PlayersAdmin({ db, pin }: { db: PublicDb; pin: string }) {
       <p className="eyebrow">Squad list</p>
       <h2>{db.players.filter((p) => p.active).length} active</h2>
       <ul className="person-list">
-        {db.players
-          .filter((p) => p.active)
-          .slice()
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((p) => (
+        {activePlayers(db).map((p) => (
             <li key={p.id} className="person">
               <span className="person-name">{p.name}</span>
               {p.id !== "p-oli" && (
@@ -370,6 +398,7 @@ function PlayersAdmin({ db, pin }: { db: PublicDb; pin: string }) {
 function SettingsForm({ db, pin }: { db: PublicDb; pin: string }) {
   const router = useRouter();
   const [form, setForm] = useState({
+    clubName: db.settings.clubName,
     payeeName: db.settings.payeeName,
     sortCode: db.settings.sortCode,
     accountNumber: db.settings.accountNumber,
@@ -380,17 +409,20 @@ function SettingsForm({ db, pin }: { db: PublicDb; pin: string }) {
     pin: "",
   });
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   return (
     <section className="card">
       <p className="eyebrow">Settings</p>
-      <h2>Venue and pay</h2>
+      <h2>Club, venue and pay</h2>
       <form
         className="stack"
         onSubmit={(e) => {
           e.preventDefault();
           start(async () => {
-            await updateSettings(pin, form);
+            const res = await updateSettings(pin, form);
+            setError(res.error ?? null);
+            if (res.error) return;
             setSaved(true);
             router.refresh();
             setTimeout(() => setSaved(false), 1500);
@@ -399,6 +431,7 @@ function SettingsForm({ db, pin }: { db: PublicDb; pin: string }) {
       >
         {(
           [
+            ["clubName", "Club name"],
             ["payeeName", "Payee name"],
             ["sortCode", "Sort code"],
             ["accountNumber", "Account number"],
@@ -431,11 +464,15 @@ function SettingsForm({ db, pin }: { db: PublicDb; pin: string }) {
           New PIN (optional)
           <input
             className="field"
+            type="password"
+            inputMode="numeric"
+            autoComplete="new-password"
             value={form.pin}
             onChange={(e) => setForm({ ...form, pin: e.target.value })}
             placeholder="Leave blank to keep"
           />
         </label>
+        {error && <p className="error">{error}</p>}
         <button className="btn btn-primary" type="submit" disabled={pending}>
           {saved ? "Saved" : "Save settings"}
         </button>

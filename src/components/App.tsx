@@ -6,15 +6,42 @@ import { addPlayer } from "@/lib/actions";
 import { activePlayers } from "@/lib/logic";
 import type { Player, PublicDb } from "@/lib/types";
 import { AdminTab } from "./AdminTab";
+import { HelpGuide } from "./HelpGuide";
 import { HomeTab } from "./HomeTab";
 import { SquadTab } from "./SquadTab";
 import { VoteTab } from "./VoteTab";
 import { WhoAreYou } from "./WhoAreYou";
 
-const PLAYER_KEY = "nk_player_id";
-const PIN_KEY = "nk_organiser_pin";
+const PLAYER_KEY = "bf_player_id";
+const PIN_KEY = "bf_admin_pin";
+const PLAYER_LEGACY = ["nk_player_id", "oli_fc_player_id"];
+const PIN_LEGACY = ["nk_admin_pin", "oli_fc_admin_pin"];
 
-type Tab = "home" | "vote" | "squad" | "oli";
+function readLocal(key: string, legacy: string[]): string | null {
+  const current = window.localStorage.getItem(key);
+  if (current) return current;
+  for (const oldKey of legacy) {
+    const old = window.localStorage.getItem(oldKey);
+    if (old) {
+      window.localStorage.setItem(key, old);
+      window.localStorage.removeItem(oldKey);
+      return old;
+    }
+  }
+  return null;
+}
+
+function writeLocal(key: string, value: string, legacy: string[]) {
+  window.localStorage.setItem(key, value);
+  for (const oldKey of legacy) window.localStorage.removeItem(oldKey);
+}
+
+function clearLocal(key: string, legacy: string[]) {
+  window.localStorage.removeItem(key);
+  for (const oldKey of legacy) window.localStorage.removeItem(oldKey);
+}
+
+type Tab = "home" | "vote" | "squad" | "admin";
 
 export function App({ db }: { db: PublicDb }) {
   const router = useRouter();
@@ -24,8 +51,8 @@ export function App({ db }: { db: PublicDb }) {
   const [tab, setTab] = useState<Tab>("home");
 
   useEffect(() => {
-    setPlayerId(window.localStorage.getItem(PLAYER_KEY));
-    setPin(window.localStorage.getItem(PIN_KEY));
+    setPlayerId(readLocal(PLAYER_KEY, PLAYER_LEGACY));
+    setPin(readLocal(PIN_KEY, PIN_LEGACY));
     setReady(true);
   }, []);
 
@@ -34,13 +61,13 @@ export function App({ db }: { db: PublicDb }) {
 
   function pick(next: Player | string) {
     const id = typeof next === "string" ? next : next.id;
-    window.localStorage.setItem(PLAYER_KEY, id);
+    writeLocal(PLAYER_KEY, id, PLAYER_LEGACY);
     setPlayerId(id);
     router.refresh();
   }
 
   function clearPlayer() {
-    window.localStorage.removeItem(PLAYER_KEY);
+    clearLocal(PLAYER_KEY, PLAYER_LEGACY);
     setPlayerId(null);
     setTab("home");
   }
@@ -52,24 +79,35 @@ export function App({ db }: { db: PublicDb }) {
     return res;
   }
 
+  const club = db.settings.clubName;
+
   if (!ready) {
     return (
-      <div className="screen">
-        <p className="eyebrow">No Knees FC</p>
-        <p className="muted">Loading…</p>
-      </div>
+      <>
+        <HelpGuide spots={db.settings.spots5s} />
+        <div className="screen">
+          <p className="eyebrow">{club}</p>
+          <p className="muted">Loading…</p>
+        </div>
+      </>
     );
   }
 
   if (!player) {
-    return <WhoAreYou players={players} onPick={pick} onCreate={createAndPick} />;
+    return (
+      <>
+        <HelpGuide spots={db.settings.spots5s} />
+        <WhoAreYou clubName={club} players={players} onPick={pick} onCreate={createAndPick} />
+      </>
+    );
   }
 
   return (
     <div className="app">
+      <HelpGuide spots={db.settings.spots5s} />
       <header className="topbar">
         <div>
-          <p className="eyebrow">No Knees FC</p>
+          <p className="eyebrow">{club}</p>
           <p className="who">
             {player.name}{" "}
             <button type="button" className="text-btn" onClick={clearPlayer}>
@@ -83,16 +121,16 @@ export function App({ db }: { db: PublicDb }) {
         {tab === "home" && <HomeTab db={db} player={player} onVote={() => setTab("vote")} />}
         {tab === "vote" && <VoteTab db={db} player={player} />}
         {tab === "squad" && <SquadTab db={db} player={player} />}
-        {tab === "oli" && (
+        {tab === "admin" && (
           <AdminTab
             db={db}
             pin={pin}
             onUnlock={(nextPin) => {
-              window.localStorage.setItem(PIN_KEY, nextPin);
+              writeLocal(PIN_KEY, nextPin, PIN_LEGACY);
               setPin(nextPin);
             }}
             onLock={() => {
-              window.localStorage.removeItem(PIN_KEY);
+              clearLocal(PIN_KEY, PIN_LEGACY);
               setPin(null);
             }}
           />
@@ -103,7 +141,7 @@ export function App({ db }: { db: PublicDb }) {
         <DockButton label="Home" active={tab === "home"} onClick={() => setTab("home")} />
         <DockButton label="Vote" active={tab === "vote"} onClick={() => setTab("vote")} />
         <DockButton label="Squad" active={tab === "squad"} onClick={() => setTab("squad")} />
-        <DockButton label="Oli" active={tab === "oli"} onClick={() => setTab("oli")} />
+        <DockButton label="Admin" active={tab === "admin"} onClick={() => setTab("admin")} />
       </nav>
     </div>
   );
@@ -119,7 +157,7 @@ function DockButton({
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={`dock-btn ${active ? "on" : ""}`} onClick={onClick}>
+    <button type="button" className={`dock-btn ${active ? "on" : ""}`} aria-current={active ? "page" : undefined} onClick={onClick}>
       {label}
     </button>
   );

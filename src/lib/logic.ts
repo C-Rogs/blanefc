@@ -1,4 +1,4 @@
-import { todayIso } from "./format";
+import { isPhoneName, todayIso } from "./format";
 import type {
   AppDb,
   Format,
@@ -18,7 +18,12 @@ export function activePlayers(db: { players: Player[] }): Player[] {
   return db.players
     .filter((p) => p.active)
     .slice()
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      const phoneA = isPhoneName(a.name) ? 1 : 0;
+      const phoneB = isPhoneName(b.name) ? 1 : 0;
+      if (phoneA !== phoneB) return phoneA - phoneB;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
 }
 
 export function votesForOption(poll: Poll, optionId: string): Vote[] {
@@ -115,6 +120,10 @@ export function claimSpot(poll: Poll, playerId: string): string | null {
   if (existing?.status === "in") return "You're already in.";
   if (existing?.status === "waitlist") {
     if (openSpots(poll) <= 0) return "Still full - you're on the waitlist.";
+    const first = waitlist(poll)[0];
+    if (first && first.playerId !== playerId) {
+      return "You're not first on the waitlist.";
+    }
     existing.status = "in";
     existing.waitlistOrder = null;
     existing.paid = false;
@@ -122,7 +131,7 @@ export function claimSpot(poll: Poll, playerId: string): string | null {
     return null;
   }
   if (existing?.status === "dropped") {
-    if (openSpots(poll) <= 0) {
+    if (openSpots(poll) <= 0 || waitlist(poll).length > 0) {
       existing.status = "waitlist";
       existing.stillOwes = false;
       existing.paid = false;
@@ -136,7 +145,7 @@ export function claimSpot(poll: Poll, playerId: string): string | null {
     existing.waitlistOrder = null;
     return null;
   }
-  if (openSpots(poll) > 0) {
+  if (openSpots(poll) > 0 && waitlist(poll).length === 0) {
     poll.squad.push({
       playerId,
       status: "in",

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { readDb, updateDb } from "./db";
-import { buildSquad, claimSpot, dropPlayer, spotsFor } from "./logic";
+import { buildSquad, claimSpot, dropPlayer, openSpots, spotsFor } from "./logic";
 import type { Format } from "./types";
 
 function slugName(name: string): string {
@@ -24,7 +24,7 @@ export async function addPlayer(
   name: string,
 ): Promise<{ id?: string; error?: string }> {
   const trimmed = name.trim();
-  if (trimmed.length < 2) return { error: "Name needs at least 2 letters." };
+  if (trimmed.length < 2) return { error: "Need a name or number (2+ characters)." };
   const id = await updateDb((db) => {
     const exists = db.players.find(
       (p) => p.active && p.name.toLowerCase() === trimmed.toLowerCase(),
@@ -53,7 +53,7 @@ export async function renameMe(
   name: string,
 ): Promise<{ error?: string }> {
   const trimmed = name.trim();
-  if (trimmed.length < 2) return { error: "Name needs at least 2 letters." };
+  if (trimmed.length < 2) return { error: "Need a name or number (2+ characters)." };
   if (!playerId) return { error: "Pick who you are first." };
   await updateDb((db) => {
     const player = db.players.find((p) => p.id === playerId);
@@ -69,9 +69,9 @@ export async function setVotes(
   optionIds: string[],
 ): Promise<{ error?: string }> {
   if (!playerId) return { error: "Pick who you are first." };
-  await updateDb((db) => {
+  const error = await updateDb((db) => {
     const poll = db.polls.find((p) => p.id === pollId);
-    if (!poll || poll.status !== "open") return;
+    if (!poll || poll.status !== "open") return "Voting is closed for this one.";
     const now = new Date().toISOString();
     const keep = new Set(optionIds);
     poll.votes = poll.votes.filter(
@@ -86,9 +86,10 @@ export async function setVotes(
         poll.votes.push({ playerId, optionId, at: now });
       }
     }
+    return undefined;
   });
   revalidatePath("/");
-  return {};
+  return error ? { error } : {};
 }
 
 export async function dropOut(
@@ -146,17 +147,17 @@ export async function ivePaid(
   pollId: string,
 ): Promise<{ error?: string }> {
   if (!playerId) return { error: "Pick who you are first." };
-  await updateDb((db) => {
+  const error = await updateDb((db) => {
     const member = db.polls
       .find((p) => p.id === pollId)
       ?.squad?.find((m) => m.playerId === playerId);
-    if (member) {
-      member.paid = true;
-      member.stillOwes = false;
-    }
+    if (!member || member.status !== "in") return "You're not in this squad.";
+    member.paid = true;
+    member.stillOwes = false;
+    return undefined;
   });
   revalidatePath("/");
-  return {};
+  return error ? { error } : {};
 }
 
 export async function createPoll(
@@ -231,6 +232,7 @@ export async function setPitch(
 export async function updateSettings(
   pin: string,
   input: {
+    clubName: string;
     payeeName: string;
     sortCode: string;
     accountNumber: string;
@@ -244,6 +246,7 @@ export async function updateSettings(
   const denied = await requireOrganiser(pin);
   if (denied) return { error: denied };
   await updateDb((db) => {
+    db.settings.clubName = input.clubName.trim() || db.settings.clubName;
     db.settings.payeeName = input.payeeName.trim() || db.settings.payeeName;
     db.settings.sortCode = input.sortCode.trim();
     db.settings.accountNumber = input.accountNumber.trim();
@@ -292,6 +295,17 @@ export async function addGuest(
       active: true,
       createdAt: new Date().toISOString(),
     });
+    if (!poll.squad) poll.squad = [];
+    if (openSpots(poll) > 0) {
+      poll.squad.push({
+        playerId: id,
+        status: "in",
+        waitlistOrder: null,
+        paid: false,
+        stillOwes: false,
+      });
+      return undefined;
+    }
     return claimSpot(poll, id) ?? undefined;
   });
   revalidatePath("/");

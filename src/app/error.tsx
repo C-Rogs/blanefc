@@ -1,5 +1,7 @@
 "use client";
 
+import { SITE_NAME } from "@/lib/brand";
+
 export default function ErrorView({
   error,
   reset,
@@ -10,7 +12,7 @@ export default function ErrorView({
   const missingDb = error.message.includes("DATABASE_URL");
   return (
     <div className="screen">
-      <p className="eyebrow">No Knees FC</p>
+      <p className="eyebrow">{SITE_NAME}</p>
       <h1 className="display-sm">{missingDb ? "Database not linked" : "Something broke"}</h1>
       <p className="muted">
         {missingDb

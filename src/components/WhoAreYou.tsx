@@ -1,14 +1,16 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { initials } from "@/lib/format";
+import { initials, isPhoneName, phoneDigits } from "@/lib/format";
 import type { Player } from "@/lib/types";
 
 export function WhoAreYou({
+  clubName,
   players,
   onPick,
   onCreate,
 }: {
+  clubName: string;
   players: Player[];
   onPick: (player: Player) => void;
   onCreate: (name: string) => Promise<{ error?: string }>;
@@ -21,23 +23,34 @@ export function WhoAreYou({
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return players.filter((p) => p.name.toLowerCase().includes(needle));
+    const digits = phoneDigits(needle);
+    return players.filter((p) => {
+      if (!needle) return true;
+      if (p.name.toLowerCase().includes(needle)) return true;
+      return digits.length >= 3 && phoneDigits(p.name).includes(digits);
+    });
   }, [players, q]);
 
   return (
     <div className="screen">
-      <header className="pt-8 pb-6">
-        <p className="eyebrow">No Knees FC</p>
+      <header className="pt-8 pb-6 pr-12">
+        <p className="eyebrow">{clubName}</p>
         <h1 className="display">Who are you?</h1>
-        <p className="lede">Tap your name. No password. Takes two seconds.</p>
+        <p className="lede">Tap your name or number. No password. Takes two seconds.</p>
       </header>
 
       <input
         className="field"
-        placeholder="Search names"
+        placeholder="Search name or number"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        autoCapitalize="words"
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+        type="search"
+        inputMode="search"
+        enterKeyHint="search"
+        autoComplete="off"
       />
 
       <div className="name-grid">
@@ -49,7 +62,9 @@ export function WhoAreYou({
             disabled={pending}
             onClick={() => onPick(player)}
           >
-            <span className="avatar">{initials(player.name)}</span>
+            <span className={`avatar${isPhoneName(player.name) ? " phone" : ""}`}>
+              {initials(player.name)}
+            </span>
             <span className="name-card-label">{player.name}</span>
           </button>
         ))}

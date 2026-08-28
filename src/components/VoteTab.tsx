@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setVotes } from "@/lib/actions";
-import { formatDay } from "@/lib/format";
+import { formatDay, shortName } from "@/lib/format";
 import { openPolls, playerName, playerVotes, votesForOption } from "@/lib/logic";
 import type { Player, Poll, PublicDb } from "@/lib/types";
 
@@ -13,8 +13,11 @@ export function VoteTab({ db, player }: { db: PublicDb; player: Player }) {
     return (
       <section className="card">
         <p className="eyebrow">Voting</p>
-        <h2>No dates up</h2>
-        <p className="muted">When Oli opens a poll, it lands here. Vote for every night you can actually play.</p>
+        <h2>No dates to vote on</h2>
+        <p className="muted">
+          Locked games sit on Home. When a poll opens for the next booking, it
+          lands here. Vote every night you can actually play.
+        </p>
       </section>
     );
   }
@@ -37,28 +40,69 @@ function PollCard({
   player: Player;
 }) {
   const mine = playerVotes(poll, player.id);
+  const mineKey = mine.slice().sort().join(",");
   const [selected, setSelected] = useState<string[]>(mine);
-  const [pending, start] = useTransition();
+  const selectedRef = useRef(selected);
+  const ackedRef = useRef(mine);
+  const queue = useRef(Promise.resolve());
+  const inflight = useRef(0);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  function toggle(optionId: string) {
-    const next = selected.includes(optionId)
-      ? selected.filter((id) => id !== optionId)
-      : [...selected, optionId];
+  useEffect(() => {
+    if (inflight.current > 0) return;
+    const next = playerVotes(poll, player.id);
+    ackedRef.current = next;
+    selectedRef.current = next;
     setSelected(next);
-    start(async () => {
-      await setVotes(player.id, poll.id, next);
-      router.refresh();
-    });
+  }, [mineKey, poll, player.id]);
+
+  function toggle(optionId: string) {
+    const current = selectedRef.current;
+    const next = current.includes(optionId)
+      ? current.filter((id) => id !== optionId)
+      : [...current, optionId];
+    selectedRef.current = next;
+    setSelected(next);
+    inflight.current += 1;
+    setPending(true);
+    queue.current = queue.current
+      .catch(() => undefined)
+      .then(async () => {
+        const payload = selectedRef.current;
+        try {
+          const res = await setVotes(player.id, poll.id, payload);
+          if (res.error) {
+            setError(res.error);
+            selectedRef.current = ackedRef.current;
+            setSelected(ackedRef.current);
+            return;
+          }
+          setError(null);
+          ackedRef.current = payload;
+          router.refresh();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "That didn't save. Tap again.");
+          selectedRef.current = ackedRef.current;
+          setSelected(ackedRef.current);
+        }
+      })
+      .finally(() => {
+        inflight.current -= 1;
+        if (inflight.current === 0) setPending(false);
+      });
   }
 
   return (
     <section className="card">
-      <p className="eyebrow">Vote</p>
+      <p className="eyebrow">Open poll</p>
       <h2>{poll.title}</h2>
       <p className="muted">
-        First {db.settings.spots5s} votes on the winning date are in. After that, waitlist in the order people tapped.
+        Not booked yet. First {db.settings.spots5s} votes on the winning date are in.
+        After that, waitlist. The date locks when the pitch is booked.
       </p>
+      {error && <p className="error">{error}</p>}
       <div className="stack">
         {poll.options.map((option) => {
           const votes = votesForOption(poll, option.id);
@@ -70,7 +114,8 @@ function PollCard({
               key={option.id}
               type="button"
               className={`vote-row ${on ? "on" : ""}`}
-              disabled={pending}
+              aria-pressed={on}
+              aria-busy={pending}
               onClick={() => toggle(option.id)}
             >
               <div>
@@ -88,7 +133,7 @@ function PollCard({
                   <p className="faces">
                     {votes
                       .slice(0, 8)
-                      .map((v) => playerName(db, v.playerId).split(" ")[0])
+                      .map((v) => shortName(playerName(db, v.playerId)))
                       .join(" · ")}
                     {votes.length > 8 ? " …" : ""}
                   </p>

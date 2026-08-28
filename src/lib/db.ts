@@ -6,6 +6,8 @@ import type { AppDb, Format, MemberStatus, Poll, PollStatus } from "./types";
 
 type Sql = NeonQueryFunction<false, false>;
 
+let schemaReady = false;
+
 function getSql(): Sql {
   const url = process.env.DATABASE_URL;
   if (!url) {
@@ -15,7 +17,19 @@ function getSql(): Sql {
   return neon(clean);
 }
 
+function asJson(db: AppDb): string {
+  return JSON.stringify(db);
+}
+
 async function migrate(sql: Sql): Promise<void> {
+  if (schemaReady) return;
+  await sql`
+    CREATE TABLE IF NOT EXISTS app_state (
+      id TEXT PRIMARY KEY,
+      data JSONB NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1
+    )
+  `;
   await sql`
     CREATE TABLE IF NOT EXISTS settings (
       id TEXT PRIMARY KEY,
@@ -81,104 +95,59 @@ async function migrate(sql: Sql): Promise<void> {
       PRIMARY KEY (poll_id, player_id)
     )
   `;
+  schemaReady = true;
 }
 
-async function persistDb(sql: Sql, db: AppDb): Promise<void> {
-  const queries = [
-    sql`SELECT pg_advisory_xact_lock(874512)`,
-    sql`DELETE FROM squad_members`,
-    sql`DELETE FROM votes`,
-    sql`DELETE FROM poll_options`,
-    sql`DELETE FROM polls`,
-    sql`DELETE FROM players`,
-    sql`DELETE FROM settings`,
-    sql`
-      INSERT INTO settings (
-        id, club_name, venue_name, venue_maps_url, kickoff,
-        default_cost_pounds, spots_5s, spots_7s, organiser_pin,
-        payee_name, sort_code, account_number
-      ) VALUES (
-        'default',
-        ${db.settings.clubName},
-        ${db.settings.venueName},
-        ${db.settings.venueMapsUrl},
-        ${db.settings.kickoff},
-        ${db.settings.defaultCostPounds},
-        ${db.settings.spots5s},
-        ${db.settings.spots7s},
-        ${db.settings.organiserPin},
-        ${db.settings.payeeName},
-        ${db.settings.sortCode},
-        ${db.settings.accountNumber}
-      )
-    `,
-    ...db.players.map(
-      (p) => sql`
-        INSERT INTO players (id, name, active, created_at)
-        VALUES (${p.id}, ${p.name}, ${p.active}, ${p.createdAt})
-      `,
-    ),
-    ...db.polls.flatMap((poll) => [
-      sql`
-        INSERT INTO polls (
-          id, title, status, created_at, cost_pounds,
-          locked_option_id, format, spots, pitch, locked_at
-        ) VALUES (
-          ${poll.id},
-          ${poll.title},
-          ${poll.status},
-          ${poll.createdAt},
-          ${poll.costPounds},
-          ${poll.lockedOptionId ?? null},
-          ${poll.format ?? null},
-          ${poll.spots ?? null},
-          ${poll.pitch ?? null},
-          ${poll.lockedAt ?? null}
-        )
-      `,
-      ...poll.options.map(
-        (option) => sql`
-          INSERT INTO poll_options (id, poll_id, date, note)
-          VALUES (${option.id}, ${poll.id}, ${option.date}, ${option.note})
-        `,
-      ),
-      ...poll.votes.map(
-        (vote) => sql`
-          INSERT INTO votes (player_id, option_id, at)
-          VALUES (${vote.playerId}, ${vote.optionId}, ${vote.at})
-        `,
-      ),
-      ...(poll.squad ?? []).map(
-        (member) => sql`
-          INSERT INTO squad_members (
-            poll_id, player_id, status, waitlist_order, paid, still_owes
-          ) VALUES (
-            ${poll.id},
-            ${member.playerId},
-            ${member.status},
-            ${member.waitlistOrder},
-            ${member.paid},
-            ${member.stillOwes}
-          )
-        `,
-      ),
-    ]),
-  ];
-  await sql.transaction(queries);
+async function persistState(sql: Sql, db: AppDb, version?: number): Promise<boolean> {
+  const payload = asJson(db);
+  if (version == null) {
+    await sql`
+      INSERT INTO app_state (id, data, version)
+      VALUES ('default', ${payload}::jsonb, 1)
+      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, version = app_state.version + 1
+    `;
+    return true;
+  }
+  const rows = await sql`
+    UPDATE app_state
+    SET data = ${payload}::jsonb, version = version + 1
+    WHERE id = 'default' AND version = ${version}
+    RETURNING version
+  `;
+  return rows.length > 0;
 }
 
-async function loadDb(sql: Sql): Promise<AppDb | null> {
+function parseState(raw: unknown): AppDb | null {
+  let data: unknown = raw;
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      return null;
+    }
+  }
+  if (!data || typeof data !== "object") return null;
+  const parsed = data as Partial<AppDb>;
+  if (!parsed.settings || !Array.isArray(parsed.players) || !Array.isArray(parsed.polls)) {
+    return null;
+  }
+  return parsed as AppDb;
+}
+
+async function loadLegacy(sql: Sql): Promise<AppDb | null> {
   const settingsRows = await sql`
     SELECT * FROM settings WHERE id = 'default' LIMIT 1
   `;
   if (settingsRows.length === 0) return null;
 
   const settingsRow = settingsRows[0];
-  const playerRows = await sql`SELECT * FROM players ORDER BY name`;
-  const pollRows = await sql`SELECT * FROM polls ORDER BY created_at DESC`;
-  const optionRows = await sql`SELECT * FROM poll_options`;
-  const voteRows = await sql`SELECT * FROM votes`;
-  const squadRows = await sql`SELECT * FROM squad_members`;
+  const [playerRows, pollRows, optionRows, voteRows, squadRows] = await Promise.all([
+    sql`SELECT * FROM players ORDER BY name`,
+    sql`SELECT * FROM polls ORDER BY created_at DESC`,
+    sql`SELECT * FROM poll_options`,
+    sql`SELECT * FROM votes`,
+    sql`SELECT * FROM squad_members`,
+  ]);
 
   const polls: Poll[] = pollRows.map((poll) => ({
     id: String(poll.id),
@@ -244,21 +213,46 @@ async function loadDb(sql: Sql): Promise<AppDb | null> {
   };
 }
 
+async function loadState(
+  sql: Sql,
+): Promise<{ db: AppDb; version: number } | { db: null; version: 0 }> {
+  const rows = await sql`SELECT data, version FROM app_state WHERE id = 'default' LIMIT 1`;
+  if (rows.length > 0) {
+    const parsed = parseState(rows[0].data);
+    if (!parsed) {
+      throw new Error("Club data could not be read. Refresh and try again.");
+    }
+    return { db: parsed, version: Number(rows[0].version) };
+  }
+  const legacy = await loadLegacy(sql);
+  if (!legacy) return { db: null, version: 0 };
+  await persistState(sql, legacy);
+  return { db: legacy, version: 1 };
+}
+
 export async function readDb(): Promise<AppDb> {
   const sql = getSql();
   await migrate(sql);
-  const existing = await loadDb(sql);
-  if (existing) return existing;
+  const loaded = await loadState(sql);
+  if (loaded.db) return loaded.db;
   const seeded = seedDb();
-  await persistDb(sql, seeded);
+  await persistState(sql, seeded);
   return seeded;
 }
 
 export async function updateDb<T>(mutator: (db: AppDb) => T): Promise<T> {
   const sql = getSql();
   await migrate(sql);
-  const db = (await loadDb(sql)) ?? seedDb();
-  const result = mutator(db);
-  await persistDb(sql, db);
-  return result;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const loaded = await loadState(sql);
+    const db = loaded.db ?? seedDb();
+    const version = loaded.db ? loaded.version : 0;
+    const result = mutator(db);
+    const ok =
+      version === 0
+        ? await persistState(sql, db)
+        : await persistState(sql, db, version);
+    if (ok) return result;
+  }
+  throw new Error("Club data was updating. Tap again.");
 }

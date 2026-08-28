@@ -1,28 +1,34 @@
 "use client";
 
-import { formatDay, formatKickoff, formatMoney, initials } from "@/lib/format";
+import { formatDay, formatKickoff, formatMoney, initials, isPhoneName, shortName } from "@/lib/format";
 import {
   inSquad,
   lockedOption,
-  nextGame,
   playerName,
   unpaid,
+  upcomingLocked,
   waitlist,
 } from "@/lib/logic";
 import type { Player, Poll, PublicDb, SquadMember } from "@/lib/types";
 
 export function SquadTab({ db, player }: { db: PublicDb; player: Player }) {
-  const game = nextGame(db);
-  if (!game || !lockedOption(game)) {
+  const games = upcomingLocked(db);
+  if (games.length === 0) {
     return (
       <section className="card">
-        <p className="eyebrow">Squad</p>
+        <p className="eyebrow">Locked squad</p>
         <h2>No locked game</h2>
-        <p className="muted">The list appears once a date is booked.</p>
+        <p className="muted">The list appears once a date is booked. Open polls stay on Vote.</p>
       </section>
     );
   }
-  return <SquadCard db={db} poll={game} you={player.id} />;
+  return (
+    <div className="stack gap-lg">
+      {games.map((poll) => (
+        <SquadCard key={poll.id} db={db} poll={poll} you={player.id} />
+      ))}
+    </div>
+  );
 }
 
 function SquadCard({
@@ -38,7 +44,7 @@ function SquadCard({
   const dropped = (poll.squad ?? []).filter((m) => m.status === "dropped");
   return (
     <section className="card">
-      <p className="eyebrow">Squad</p>
+      <p className="eyebrow">Locked squad</p>
       <h2>
         {formatDay(option.date)} · {formatKickoff(db.settings.kickoff)}
       </h2>
@@ -78,7 +84,7 @@ function SquadCard({
 
       {unpaid(poll).length > 0 && (
         <p className="muted tiny">
-          Unpaid: {unpaid(poll).map((m) => playerName(db, m.playerId).split(" ")[0]).join(", ")}
+          Unpaid: {unpaid(poll).map((m) => shortName(playerName(db, m.playerId))).join(", ")}
         </p>
       )}
     </section>
@@ -97,7 +103,7 @@ function PersonRow({
   const name = playerName(db, member.playerId);
   return (
     <li className={`person ${member.playerId === you ? "you" : ""}`}>
-      <span className="avatar sm">{initials(name)}</span>
+      <span className={`avatar sm${isPhoneName(name) ? " phone" : ""}`}>{initials(name)}</span>
       <span className="person-name">
         {name}
         {member.playerId === you ? " (you)" : ""}

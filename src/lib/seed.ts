@@ -43,13 +43,12 @@ export function seedDb(): AppDb {
       member("p-mike", "in"),
       member("p-new-aug21", "in"),
       member("p-dan", "in"),
-      member("p-aman", "in", { paid: true }),
+      member("p-aman", "in"),
       member("p-greg", "in"),
       member("p-sammy-d", "in"),
       member("p-new-jul", "in"),
       member("p-reece-sub", "in", { paid: true }),
       member("p-cameron", "in"),
-      member("p-sim", "in"),
       member("p-charles", "waitlist", { waitlistOrder: 1 }),
       member("p-arnav", "waitlist", { waitlistOrder: 2 }),
       member("p-von", "waitlist", { waitlistOrder: 3 }),
@@ -85,7 +84,7 @@ export function seedDb(): AppDb {
     ],
   };
 
-  const autumn: Poll = {
+  const nextDates: Poll = {
     id: "poll-autumn-1",
     title: "Late September dates",
     status: "open",
@@ -96,27 +95,19 @@ export function seedDb(): AppDb {
       { id: "aut-wed", date: "2026-09-30", note: "5s and 7s" },
       { id: "aut-thu", date: "2026-10-01", note: "5s only" },
     ],
-    votes: [
-      { playerId: "p-cameron", optionId: "aut-tue", at: "2026-08-27T09:10:00.000Z" },
-      { playerId: "p-cameron", optionId: "aut-wed", at: "2026-08-27T09:10:00.000Z" },
-      { playerId: "p-oli", optionId: "aut-tue", at: "2026-08-27T09:12:00.000Z" },
-      { playerId: "p-oli", optionId: "aut-wed", at: "2026-08-27T09:12:00.000Z" },
-      { playerId: "p-oli", optionId: "aut-thu", at: "2026-08-27T09:12:00.000Z" },
-      { playerId: "p-aneesh", optionId: "aut-wed", at: "2026-08-27T09:20:00.000Z" },
-      { playerId: "p-joe", optionId: "aut-tue", at: "2026-08-27T09:30:00.000Z" },
-    ],
+    votes: [],
   };
 
   return {
     settings: {
-      clubName: "No Knees FC",
+      clubName: "BlaneFC",
       venueName: "PlayFootball Mile End",
       venueMapsUrl: "https://maps.app.goo.gl/HtJNtaiHbvi9BARm7",
       kickoff: "19:00",
       defaultCostPounds: 10,
       spots5s: 12,
       spots7s: 16,
-      organiserPin: "0710",
+      organiserPin: "0000",
       payeeName: "Organiser",
       sortCode: "",
       accountNumber: "",
@@ -146,6 +137,6 @@ export function seedDb(): AppDb {
       player("p-new-jul", "New player 2"),
       player("p-reece-sub", "New player 3"),
     ],
-    polls: [sep1, sep15, autumn],
+    polls: [sep1, sep15, nextDates],
   };
 }
