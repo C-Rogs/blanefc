@@ -2,7 +2,7 @@
 
 WhatsApp-first site for the 5-a-side group. Paste the live link in the chat. No app store. No login. Tap your name.
 
-**Live link:** https://blanefc.c-rogs.workers.dev
+**Live link:** https://no-knees.c-rogs.workers.dev
 
 Works on iPhone and Android (Safari, Chrome, or WhatsApp’s in-app browser). WhatsApp often wipes cookies, so identity lives in that phone’s local storage only. Each person taps their own name on their own phone.
 
@@ -73,4 +73,4 @@ Lock Admin when you are done so the PIN is needed again on that phone.
 2. `npm install` then `npm run dev`.
 3. Publish: `npm run deploy` (Cloudflare Workers via OpenNext). Keep `DATABASE_URL` as a Wrangler secret, not in git.
 
-The Worker URL is `blanefc.c-rogs.workers.dev`. Neon holds the club data.
+The Worker URL is `no-knees.c-rogs.workers.dev`. Neon holds the club data.
