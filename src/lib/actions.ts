@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { readDb, updateDb } from "./db";
+import { formatDateRange, formatDay } from "./format";
 import { buildSquad, claimSpot, dropPlayer, openSpots, spotsFor } from "./logic";
 import type { Format } from "./types";
 
@@ -24,7 +25,7 @@ export async function addPlayer(
   name: string,
 ): Promise<{ id?: string; error?: string }> {
   const trimmed = name.trim();
-  if (trimmed.length < 2) return { error: "Need a name or number (2+ characters)." };
+  if (trimmed.length < 2) return { error: "Type a name." };
   const id = await updateDb((db) => {
     const exists = db.players.find(
       (p) => p.active && p.name.toLowerCase() === trimmed.toLowerCase(),
@@ -53,8 +54,8 @@ export async function renameMe(
   name: string,
 ): Promise<{ error?: string }> {
   const trimmed = name.trim();
-  if (trimmed.length < 2) return { error: "Need a name or number (2+ characters)." };
-  if (!playerId) return { error: "Pick who you are first." };
+  if (trimmed.length < 2) return { error: "Type a name." };
+  if (!playerId) return { error: "Pick a name first." };
   await updateDb((db) => {
     const player = db.players.find((p) => p.id === playerId);
     if (player) player.name = trimmed;
@@ -68,7 +69,7 @@ export async function setVotes(
   pollId: string,
   optionIds: string[],
 ): Promise<{ error?: string }> {
-  if (!playerId) return { error: "Pick who you are first." };
+  if (!playerId) return { error: "Pick a name first." };
   const error = await updateDb((db) => {
     const poll = db.polls.find((p) => p.id === pollId);
     if (!poll || poll.status !== "open") return "Voting is closed for this one.";
@@ -96,7 +97,7 @@ export async function dropOut(
   playerId: string,
   pollId: string,
 ): Promise<{ error?: string }> {
-  if (!playerId) return { error: "Pick who you are first." };
+  if (!playerId) return { error: "Pick a name first." };
   const error = await updateDb((db) => {
     const poll = db.polls.find((p) => p.id === pollId);
     if (!poll || poll.status !== "locked") return "No locked game to drop from.";
@@ -113,7 +114,7 @@ export async function takeSpot(
   playerId: string,
   pollId: string,
 ): Promise<{ error?: string }> {
-  if (!playerId) return { error: "Pick who you are first." };
+  if (!playerId) return { error: "Pick a name first." };
   const error = await updateDb((db) => {
     const poll = db.polls.find((p) => p.id === pollId);
     if (!poll || poll.status !== "locked") return "That date isn't booked yet.";
@@ -146,7 +147,7 @@ export async function ivePaid(
   playerId: string,
   pollId: string,
 ): Promise<{ error?: string }> {
-  if (!playerId) return { error: "Pick who you are first." };
+  if (!playerId) return { error: "Pick a name first." };
   const error = await updateDb((db) => {
     const member = db.polls
       .find((p) => p.id === pollId)
@@ -162,14 +163,13 @@ export async function ivePaid(
 
 export async function createPoll(
   pin: string,
-  input: { title: string; dates: { date: string; note: string }[] },
+  input: { title?: string; dates: { date: string; note: string }[] },
 ): Promise<{ error?: string }> {
   const denied = await requireOrganiser(pin);
   if (denied) return { error: denied };
-  const title = input.title.trim();
   const dates = input.dates.filter((d) => d.date);
-  if (!title) return { error: "Give the poll a name." };
   if (dates.length === 0) return { error: "Add at least one date." };
+  const title = input.title?.trim() || formatDateRange(dates.map((d) => d.date));
   await updateDb((db) => {
     db.polls.unshift({
       id: `poll-${crypto.randomUUID().slice(0, 8)}`,
@@ -204,6 +204,7 @@ export async function lockDate(
     const spots = spotsFor(format, db);
     poll.status = "locked";
     poll.lockedOptionId = optionId;
+    poll.title = formatDay(poll.options.find((o) => o.id === optionId)?.date ?? poll.title);
     poll.format = format;
     poll.spots = spots;
     poll.lockedAt = new Date().toISOString();

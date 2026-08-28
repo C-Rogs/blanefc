@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { dropOut, ivePaid, takeSpot } from "@/lib/actions";
 import { formatDay, formatKickoff, formatMoney, shortName } from "@/lib/format";
 import {
@@ -12,12 +12,16 @@ import {
   openSpots,
   playerName,
   playingCount,
+  pollLabel,
   unpaid,
   upcomingLocked,
+  votesForOption,
   waitlist,
 } from "@/lib/logic";
 import type { Player, Poll, PublicDb } from "@/lib/types";
 import { ActionButton, CopyButton } from "./Buttons";
+import { DateBlock, MapPin } from "./Mark";
+import { VoterList } from "./VoterList";
 
 export function HomeTab({
   db,
@@ -30,30 +34,42 @@ export function HomeTab({
 }) {
   const game = nextGame(db);
   const others = upcomingLocked(db).filter((p) => p.id !== game?.id);
-  const polls = openPolls(db);
+  const poll = openPolls(db)[0];
 
   return (
     <div className="stack gap-lg">
       {game ? (
         <GameCard db={db} poll={game} player={player} />
       ) : (
-        <section className="card">
-          <p className="eyebrow">Next game</p>
-          <h2>Nothing booked yet</h2>
-          <p className="muted">A date locks once enough votes are in.</p>
+        <section className="card empty">
+          <h2>No game yet</h2>
+          <p className="muted">Vote first. Locks when the pitch is booked.</p>
         </section>
       )}
 
-      {polls.length > 0 && (
+      {poll && (
         <section className="card">
-          <p className="eyebrow">Open poll</p>
-          <h2>{polls[0].title}</h2>
-          <p className="muted">
-            Not booked yet. Vote every night you can do. First {db.settings.spots5s} on
-            the winning date get in.
-          </p>
-          <button type="button" className="btn btn-lime" onClick={onVote}>
-            Vote now
+          <h2>{pollLabel(poll)}</h2>
+          <p className="muted">Tap the nights you can do.</p>
+          <div className="stack mt-4">
+            {poll.options.map((option) => {
+              const votes = votesForOption(poll, option.id);
+              return (
+                <div key={option.id} className="vote-preview">
+                  <p className="vote-preview-day">
+                    {formatDay(option.date)}
+                    <span className="muted">
+                      {" "}
+                      · {votes.length} vote{votes.length === 1 ? "" : "s"}
+                    </span>
+                  </p>
+                  <VoterList db={db} votes={votes} />
+                </div>
+              );
+            })}
+          </div>
+          <button type="button" className="btn btn-lime mt-4" onClick={onVote}>
+            Vote
           </button>
         </section>
       )}
@@ -81,36 +97,38 @@ function AlsoLockedCard({
   const nextWait = waitlist(poll)[0];
   const waiting = waitlist(poll).length;
 
-  let status = "Full · voting closed";
-  if (mine?.status === "in") status = "You're in · voting closed";
-  else if (mine?.status === "waitlist") status = `Waitlist #${mine.waitlistOrder} · voting closed`;
-  else if (spotsLeft > 0 && waiting > 0) status = `${spotsLeft} open · waitlist goes first`;
-  else if (spotsLeft > 0)
-    status = `${spotsLeft} space${spotsLeft === 1 ? "" : "s"} left · voting closed`;
+  let status = "Full";
+  if (mine?.status === "in") status = "You're in";
+  else if (mine?.status === "waitlist") status = `Waitlist #${mine.waitlistOrder}`;
+  else if (spotsLeft > 0 && waiting > 0) status = `${spotsLeft} open · waitlist first`;
+  else if (spotsLeft > 0) status = `${spotsLeft} space${spotsLeft === 1 ? "" : "s"}`;
 
   return (
     <section className="card compact">
-      <p className="eyebrow">Also locked in</p>
-      <h3>
-        {formatDay(option.date)} · {playingCount(poll)}/{poll.spots}
-      </h3>
-      <p className="muted">{status}</p>
-      <PlayerActions
-        db={db}
-        poll={poll}
-        playerId={player.id}
-        mine={mine}
-        spotsLeft={spotsLeft}
-        nextWaitName={nextWait ? playerName(db, nextWait.playerId) : null}
-      />
-      {mine?.status === "in" && !mine.paid && (
-        <div className="row mt-4">
-          <CopyButton text={paymentDetails(db, poll)} label="Copy pay details" />
-          <ActionButton variant="lime" onClick={() => ivePaid(player.id, poll.id)}>
-            I&apos;ve paid
-          </ActionButton>
+      <div className="also">
+        <DateBlock iso={option.date} size="sm" />
+        <div className="also-copy">
+          <p className="muted">
+            {playingCount(poll)}/{poll.spots} · {status}
+          </p>
+          <PlayerActions
+            db={db}
+            poll={poll}
+            playerId={player.id}
+            mine={mine}
+            spotsLeft={spotsLeft}
+            nextWaitName={nextWait ? playerName(db, nextWait.playerId) : null}
+          />
+          {mine?.status === "in" && !mine.paid && (
+            <div className="row">
+              <CopyButton text={paymentDetails(db, poll)} label="Copy bank" />
+              <ActionButton variant="lime" onClick={() => ivePaid(player.id, poll.id)}>
+                I&apos;ve paid
+              </ActionButton>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </section>
   );
 }
@@ -130,91 +148,97 @@ function GameCard({
   const spotsLeft = openSpots(poll);
   const nextWait = waitlist(poll)[0];
   const payText = paymentDetails(db, poll);
+  const playing = playingCount(poll);
+  const spots = poll.spots ?? 12;
 
   return (
     <section className="card hero">
-      <p className="eyebrow">Locked in</p>
-      <h2 className="display-sm">{formatDay(option.date)}</h2>
-      <p className="hero-meta">
-        {formatKickoff(db.settings.kickoff)} · {db.settings.venueName}
-        {poll.pitch ? ` · Pitch ${poll.pitch}` : ""}
-      </p>
-      <p className="muted tiny">Voting closed. Squad confirmed. Drop out only if you can&apos;t make it.</p>
-
-      <StatusBanner
-        mine={mine}
-        spotsLeft={spotsLeft}
-        spots={poll.spots ?? 12}
-        playing={playingCount(poll)}
-        waiting={waitlist(poll).length}
-      />
-
-      <div className="meter" aria-hidden>
-        <span style={{ width: `${(playingCount(poll) / (poll.spots ?? 12)) * 100}%` }} />
-      </div>
-      <p className="muted">
-        {playingCount(poll)}/{poll.spots} in
-        {waitlist(poll).length > 0 ? ` · ${waitlist(poll).length} waiting` : ""}
-        {spotsLeft > 0 ? ` · ${spotsLeft} open` : ""}
-      </p>
-
-      <PlayerActions
-        db={db}
-        poll={poll}
-        playerId={player.id}
-        mine={mine}
-        spotsLeft={spotsLeft}
-        nextWaitName={nextWait ? playerName(db, nextWait.playerId) : null}
-      />
-
-      {mine?.status === "in" && !mine.paid && (
-        <div className="pay-box">
-          <p className="pay-title">
-            Send {formatMoney(poll.costPounds)} to {db.settings.payeeName}
+      <div className="fixture">
+        <DateBlock iso={option.date} />
+        <div className="fixture-copy">
+          <p className="kick">{formatKickoff(db.settings.kickoff)}</p>
+          <p className="venue">
+            {db.settings.venueName}
+            {poll.pitch ? ` · Pitch ${poll.pitch}` : ""}
           </p>
-          {db.settings.sortCode ? (
-            <p className="mono">
-              {db.settings.sortCode} · {db.settings.accountNumber}
-            </p>
-          ) : (
-            <p className="muted">Bank details missing. Admin can paste them in Settings.</p>
-          )}
-          <div className="row">
-            <CopyButton text={payText} label="Copy pay details" />
-            <ActionButton variant="lime" onClick={() => ivePaid(player.id, poll.id)}>
-              I&apos;ve paid
-            </ActionButton>
+          <StatusBanner
+            mine={mine}
+            spotsLeft={spotsLeft}
+            spots={spots}
+            playing={playing}
+            waiting={waitlist(poll).length}
+          />
+          <div className="pips" aria-hidden>
+            {Array.from({ length: spots }, (_, i) => (
+              <span key={i} className={i < playing ? "on" : ""} />
+            ))}
           </div>
+          <p className="muted tiny">
+            {playing}/{spots}
+            {waitlist(poll).length > 0 ? ` · ${waitlist(poll).length} waiting` : ""}
+            {spotsLeft > 0 ? ` · ${spotsLeft} open` : ""}
+          </p>
         </div>
-      )}
+      </div>
 
-      {mine?.status === "in" && mine.paid && (
-        <p className="ok">Paid. See you there.</p>
-      )}
+      <div className="hero-body">
+        <PlayerActions
+          db={db}
+          poll={poll}
+          playerId={player.id}
+          mine={mine}
+          spotsLeft={spotsLeft}
+          nextWaitName={nextWait ? playerName(db, nextWait.playerId) : null}
+        />
 
-      {unpaid(poll).length > 0 && mine?.status === "in" && (
-        <p className="muted tiny">
-          {unpaid(poll).length} still to pay, including{" "}
-          {unpaid(poll)[0].playerId === player.id
-            ? "you."
-            : `${playerName(db, unpaid(poll)[0].playerId)}.`}
-        </p>
-      )}
+        {mine?.status === "in" && !mine.paid && (
+          <div className="pay-box">
+            <p className="pay-title">
+              {formatMoney(poll.costPounds)} to {db.settings.payeeName}
+            </p>
+            {db.settings.sortCode ? (
+              <p className="mono">
+                {db.settings.sortCode} · {db.settings.accountNumber}
+              </p>
+            ) : (
+              <p className="muted">No bank details yet.</p>
+            )}
+            <div className="row">
+              <CopyButton text={payText} label="Copy bank" />
+              <ActionButton variant="lime" onClick={() => ivePaid(player.id, poll.id)}>
+                I&apos;ve paid
+              </ActionButton>
+            </div>
+          </div>
+        )}
 
-      {inSquad(poll).length > 0 && (
-        <p className="faces">
-          {inSquad(poll)
-            .slice(0, 12)
-            .map((m) => shortName(playerName(db, m.playerId)))
-            .join(" · ")}
-        </p>
-      )}
+        {mine?.status === "in" && mine.paid && <p className="ok">Paid. See you there.</p>}
 
-      {db.settings.venueMapsUrl && (
-        <a className="link" href={db.settings.venueMapsUrl} target="_blank" rel="noreferrer">
-          Map to the pitches
-        </a>
-      )}
+        {unpaid(poll).length > 0 && mine?.status === "in" && (
+          <p className="muted tiny">
+            {unpaid(poll).length} still to pay, including{" "}
+            {unpaid(poll)[0].playerId === player.id
+              ? "you."
+              : `${playerName(db, unpaid(poll)[0].playerId)}.`}
+          </p>
+        )}
+
+        {inSquad(poll).length > 0 && (
+          <p className="faces">
+            {inSquad(poll)
+              .slice(0, 12)
+              .map((m) => shortName(playerName(db, m.playerId)))
+              .join(" · ")}
+          </p>
+        )}
+
+        {db.settings.venueMapsUrl && (
+          <a className="link map-link" href={db.settings.venueMapsUrl} target="_blank" rel="noreferrer">
+            <MapPin />
+            Directions
+          </a>
+        )}
+      </div>
     </section>
   );
 }
@@ -237,22 +261,14 @@ function StatusBanner({
   }
   if (mine?.status === "waitlist") {
     if (spotsLeft > 0 && mine.waitlistOrder === 1) {
-      return (
-        <div className="banner banner-wait">
-          Waitlist #1 · {spotsLeft} open. You can take it.
-        </div>
-      );
+      return <div className="banner banner-wait">You&apos;re first · spot&apos;s free</div>;
     }
-    return (
-      <div className="banner banner-wait">
-        Waitlist #{mine.waitlistOrder}
-      </div>
-    );
+    return <div className="banner banner-wait">Waitlist #{mine.waitlistOrder}</div>;
   }
   if (mine?.status === "dropped") {
     return (
       <div className="banner banner-out">
-        {mine.stillOwes ? "Dropped - still owing unless someone takes it" : "You're out"}
+        {mine.stillOwes ? "Out · still owe unless someone takes it" : "You're out"}
       </div>
     );
   }
@@ -260,11 +276,11 @@ function StatusBanner({
     return (
       <div className="banner banner-open">
         {spotsLeft} space{spotsLeft === 1 ? "" : "s"}
-        {waiting > 0 ? " · waitlist goes first" : ` · ${playing}/${spots}`}
+        {waiting > 0 ? " · waitlist first" : ` · ${playing}/${spots}`}
       </div>
     );
   }
-  return <div className="banner banner-full">Full · waitlist open</div>;
+  return <div className="banner banner-full">Full · waitlist going</div>;
 }
 
 function PlayerActions({
@@ -283,13 +299,22 @@ function PlayerActions({
 }) {
   const [confirmDrop, setConfirmDrop] = useState(false);
 
+  useEffect(() => {
+    if (!confirmDrop) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setConfirmDrop(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [confirmDrop]);
+
   if (mine?.status === "in") {
     return confirmDrop ? (
       <div className="stack">
         <p className="warn">
           {nextWaitName
-            ? `We'll give your spot to ${nextWaitName}.`
-            : `No one on the waitlist. If nobody takes it, you still owe ${formatMoney(poll.costPounds)}.`}
+            ? `Spot goes to ${nextWaitName}.`
+            : `Nobody waiting. If no one takes it, you still owe ${formatMoney(poll.costPounds)}.`}
         </p>
         <div className="row">
           <ActionButton variant="danger" onClick={() => dropOut(playerId, poll.id)}>
@@ -309,29 +334,40 @@ function PlayerActions({
 
   if (mine?.status === "waitlist") {
     if (spotsLeft > 0 && mine.waitlistOrder === 1) {
-      return <ActionButton variant="lime" onClick={() => takeSpot(playerId, poll.id)}>Take the open spot</ActionButton>;
+      return (
+        <ActionButton variant="lime" onClick={() => takeSpot(playerId, poll.id)}>
+          I&apos;ll take it
+        </ActionButton>
+      );
     }
     if (spotsLeft > 0) {
       return (
         <p className="muted">
-          {nextWaitName ? `${nextWaitName} is first for the open spot.` : "Waitlist goes first."} You&apos;re #{mine.waitlistOrder}.
+          {nextWaitName ? `${nextWaitName} is first.` : "Waitlist goes first."} You&apos;re #
+          {mine.waitlistOrder}.
         </p>
       );
     }
     return (
       <p className="muted">
-        {mine.waitlistOrder === 1 ? "If someone drops, you're next." : `You're #${mine.waitlistOrder} on the waitlist.`}
+        {mine.waitlistOrder === 1
+          ? "If someone drops, you're next."
+          : `You're #${mine.waitlistOrder} on the waitlist.`}
       </p>
     );
   }
 
   if (spotsLeft > 0 && !nextWaitName) {
-    return <ActionButton variant="lime" onClick={() => takeSpot(playerId, poll.id)}>I&apos;ll take a spot</ActionButton>;
+    return (
+      <ActionButton variant="lime" onClick={() => takeSpot(playerId, poll.id)}>
+        I&apos;ll take a spot
+      </ActionButton>
+    );
   }
 
   return (
     <ActionButton variant="ghost" onClick={() => takeSpot(playerId, poll.id)}>
-      Join waitlist
+      Put me down
     </ActionButton>
   );
 }

@@ -4,6 +4,7 @@ import {
   inSquad,
   lockedOption,
   playerName,
+  pollLabel,
   unpaid,
   waitlist,
 } from "./logic";
@@ -31,28 +32,25 @@ export function paymentMessage(db: PublicDb, poll: Poll): string {
     unpaid(poll).map((m) => m.playerId),
   );
   return [
-    `Reminder that this session is ${formatDay(option.date)} ${formatKickoff(db.settings.kickoff)} @ ${db.settings.venueName}`,
+    `${formatDay(option.date)}, ${formatKickoff(db.settings.kickoff)} @ ${db.settings.venueName}`,
     "",
-    `Please send ${formatMoney(poll.costPounds)} to the account below:`,
+    `${formatMoney(poll.costPounds)} to:`,
     "",
     bankBlock(db),
     "",
-    due || "Everyone in has paid 🙌",
+    due || "All paid.",
   ].join("\n");
 }
 
 export function pollMessage(db: PublicDb, poll: Poll): string {
-  const lines = [
-    `*${poll.title}*`,
-    "Vote for every date you can actually play. First votes get the guaranteed spots.",
+  return [
+    `*${pollLabel(poll)}*`,
+    "Tap every night you can actually play.",
     "",
-    ...poll.options.map(
-      (o) => `• ${formatDay(o.date)}${o.note ? ` (${o.note})` : ""}`,
-    ),
+    ...poll.options.map((o) => `• ${formatDay(o.date)}${o.note ? ` (${o.note})` : ""}`),
     "",
-    "Tap the link, pick your name, vote. Takes 10 seconds.",
-  ];
-  return lines.join("\n");
+    `First ${db.settings.spots5s} on the winning date are in. Rest waitlist.`,
+  ].join("\n");
 }
 
 export function lockedMessage(db: PublicDb, poll: Poll): string {
@@ -68,14 +66,12 @@ export function lockedMessage(db: PublicDb, poll: Poll): string {
     wait.map((m) => m.playerId),
   );
   return [
-    `${formatDay(option.date)} locked in. ${formatKickoff(db.settings.kickoff)} @ ${db.settings.venueName}.`,
+    `${formatDay(option.date)} locked. ${formatKickoff(db.settings.kickoff)} @ ${db.settings.venueName}.`,
     "",
     `In (${inSquad(poll).length}/${poll.spots}): ${inNames}`,
-    wait.length
-      ? `Waitlist: ${waitNames}`
-      : "Waitlist is empty - shout if you want in.",
+    wait.length ? `Waitlist: ${waitNames}` : "Waitlist empty. Shout if you want in.",
     "",
-    `If you drop after this, you still pay ${formatMoney(poll.costPounds)} unless someone takes your spot.`,
+    `Drop after this and you still pay ${formatMoney(poll.costPounds)} unless someone takes the spot.`,
   ].join("\n");
 }
 
@@ -84,9 +80,9 @@ export function spotFreeMessage(db: PublicDb, poll: Poll): string {
   if (!option) return "";
   const next = waitlist(poll)[0];
   if (next) {
-    return `Spot free for ${formatDay(option.date)}. @${playerName(db, next.playerId)} you're up if you still want it.`;
+    return `Spot free ${formatDay(option.date)}. @${playerName(db, next.playerId)} you're up if you still want it.`;
   }
-  return `Anyone want to play ${formatDay(option.date)}? We have a space.`;
+  return `Anyone for ${formatDay(option.date)}? We've got a space.`;
 }
 
 export function matchDayMessage(db: PublicDb, poll: Poll): string {

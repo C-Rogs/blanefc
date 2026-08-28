@@ -1,4 +1,4 @@
-import { isPhoneName, todayIso } from "./format";
+import { formatDateRange, formatDay, isPhoneName, todayIso } from "./format";
 import type {
   AppDb,
   Format,
@@ -174,13 +174,10 @@ function reindexWaitlist(poll: Poll): void {
 
 export function nextGame(db: PublicDb | AppDb, now = new Date()): Poll | undefined {
   const today = todayIso(now);
-  const locked = db.polls
+  return db.polls
     .filter((p) => p.status === "locked" && lockedOption(p))
-    .sort((a, b) => (lockedOption(a)?.date ?? "").localeCompare(lockedOption(b)?.date ?? ""));
-  return (
-    locked.find((p) => (lockedOption(p)?.date ?? "") >= today) ??
-    locked[locked.length - 1]
-  );
+    .sort((a, b) => (lockedOption(a)?.date ?? "").localeCompare(lockedOption(b)?.date ?? ""))
+    .find((p) => (lockedOption(p)?.date ?? "") >= today);
 }
 
 export function openPolls(db: PublicDb | AppDb): Poll[] {
@@ -197,7 +194,27 @@ export function upcomingLocked(db: PublicDb | AppDb, now = new Date()): Poll[] {
     .sort((a, b) => (lockedOption(a)?.date ?? "").localeCompare(lockedOption(b)?.date ?? ""));
 }
 
+export function pastGames(db: PublicDb | AppDb, now = new Date()): Poll[] {
+  const today = todayIso(now);
+  return db.polls
+    .filter((p) => {
+      if (p.status === "open") return false;
+      const date = lockedOption(p)?.date ?? "";
+      return Boolean(date) && date < today;
+    })
+    .sort((a, b) => (lockedOption(b)?.date ?? "").localeCompare(lockedOption(a)?.date ?? ""));
+}
+
+export function pollLabel(poll: Poll): string {
+  if (poll.status !== "open") {
+    const locked = lockedOption(poll);
+    if (locked) return formatDay(locked.date);
+  }
+  return formatDateRange(poll.options.map((o) => o.date)) || poll.title;
+}
+
 export function toPublicDb(db: AppDb): PublicDb {
-  const { organiserPin: _pin, ...settings } = db.settings;
-  return { ...db, settings };
+  const { organiserPin, ...settings } = db.settings;
+  void organiserPin;
+  return { players: db.players, polls: db.polls, settings };
 }

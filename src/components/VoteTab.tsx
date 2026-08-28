@@ -3,21 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setVotes } from "@/lib/actions";
-import { formatDay, shortName } from "@/lib/format";
-import { openPolls, playerName, playerVotes, votesForOption } from "@/lib/logic";
+import { formatDay } from "@/lib/format";
+import { openPolls, playerVotes, pollLabel, votesForOption } from "@/lib/logic";
 import type { Player, Poll, PublicDb } from "@/lib/types";
+import { VoterList } from "./VoterList";
 
 export function VoteTab({ db, player }: { db: PublicDb; player: Player }) {
   const polls = openPolls(db);
   if (polls.length === 0) {
     return (
-      <section className="card">
-        <p className="eyebrow">Voting</p>
-        <h2>No dates to vote on</h2>
-        <p className="muted">
-          Locked games sit on Home. When a poll opens for the next booking, it
-          lands here. Vote every night you can actually play.
-        </p>
+      <section className="card empty">
+        <h2>No poll up</h2>
+        <p className="muted">When there is one, nights show here.</p>
       </section>
     );
   }
@@ -83,7 +80,7 @@ function PollCard({
           ackedRef.current = payload;
           router.refresh();
         } catch (err) {
-          setError(err instanceof Error ? err.message : "That didn't save. Tap again.");
+          setError(err instanceof Error ? err.message : "Didn't save. Tap again.");
           selectedRef.current = ackedRef.current;
           setSelected(ackedRef.current);
         }
@@ -96,14 +93,10 @@ function PollCard({
 
   return (
     <section className="card">
-      <p className="eyebrow">Open poll</p>
-      <h2>{poll.title}</h2>
-      <p className="muted">
-        Not booked yet. First {db.settings.spots5s} votes on the winning date are in.
-        After that, waitlist. The date locks when the pitch is booked.
-      </p>
+      <h2>{pollLabel(poll)}</h2>
+      <p className="muted">Every night you can play. First {db.settings.spots5s} are in.</p>
       {error && <p className="error">{error}</p>}
-      <div className="stack">
+      <div className="stack mt-4">
         {poll.options.map((option) => {
           const votes = votesForOption(poll, option.id);
           const on = selected.includes(option.id);
@@ -118,28 +111,22 @@ function PollCard({
               aria-busy={pending}
               onClick={() => toggle(option.id)}
             >
-              <div>
-                <strong>{formatDay(option.date)}</strong>
-                {option.note && <span className="muted"> · {option.note}</span>}
+              <div className="vote-copy">
+                <span className="vote-when">{formatDay(option.date)}</span>
+                {option.note && <span className="muted"> {option.note}</span>}
                 <p className="tiny muted">
                   {`${votes.length} vote${votes.length === 1 ? "" : "s"}`}
                   {on && myPlace
                     ? guaranteed
-                      ? ` · you're #${myPlace} (in if this date wins)`
-                      : ` · you're #${myPlace} (waitlist if this date wins)`
+                      ? ` · #${myPlace} · in if it wins`
+                      : ` · #${myPlace} · waitlist if it wins`
                     : ""}
                 </p>
-                {votes.length > 0 && (
-                  <p className="faces">
-                    {votes
-                      .slice(0, 8)
-                      .map((v) => shortName(playerName(db, v.playerId)))
-                      .join(" · ")}
-                    {votes.length > 8 ? " …" : ""}
-                  </p>
-                )}
+                <VoterList db={db} votes={votes} />
               </div>
-              <span className={`tick ${on ? "on" : ""}`}>{on ? "In" : "Tap"}</span>
+              <span className={`box ${on ? "on" : ""}`} aria-hidden>
+                {on ? "×" : ""}
+              </span>
             </button>
           );
         })}

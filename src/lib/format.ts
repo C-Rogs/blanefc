@@ -20,8 +20,27 @@ export function parseDate(isoDate: string): Date {
 }
 
 export function formatDay(isoDate: string): string {
+  const { dow, day, month } = dateParts(isoDate);
+  return `${dow} ${day} ${month}`;
+}
+
+export function formatDateRange(isoDates: string[]): string {
+  const dates = [...new Set(isoDates.filter(Boolean))].sort();
+  if (dates.length === 0) return "";
+  if (dates.length === 1) return formatDay(dates[0]!);
+  const a = dateParts(dates[0]!);
+  const b = dateParts(dates[dates.length - 1]!);
+  if (a.month === b.month) return `${a.dow} ${a.day} to ${b.dow} ${b.day} ${b.month}`;
+  return `${a.dow} ${a.day} ${a.month} to ${b.dow} ${b.day} ${b.month}`;
+}
+
+export function dateParts(isoDate: string): { dow: string; day: string; month: string } {
   const date = parseDate(isoDate);
-  return `${DAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]}`;
+  return {
+    dow: DAYS[date.getDay()]!,
+    day: String(date.getDate()),
+    month: MONTHS[date.getMonth()]!,
+  };
 }
 
 export function formatKickoff(time: string): string {
@@ -36,10 +55,15 @@ export function formatMoney(pounds: number): string {
 }
 
 export function todayIso(now = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  return `${pick("year")}-${pick("month")}-${pick("day")}`;
 }
 
 export function isPhoneName(name: string): boolean {

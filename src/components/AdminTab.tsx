@@ -21,6 +21,8 @@ import {
   nextGame,
   openPolls,
   playerName,
+  pollLabel,
+  pastGames,
   unpaid,
   upcomingLocked,
   votesForOption,
@@ -56,6 +58,9 @@ export function AdminTab({
       {upcomingLocked(db).map((poll) => (
         <GameAdmin key={poll.id} db={db} pin={pin} poll={poll} />
       ))}
+      {pastGames(db).map((poll) => (
+        <GameAdmin key={poll.id} db={db} pin={pin} poll={poll} past />
+      ))}
       <PlayersAdmin db={db} pin={pin} />
       <SettingsForm db={db} pin={pin} />
       <button type="button" className="btn btn-ghost" onClick={onLock}>
@@ -71,11 +76,8 @@ function PinGate({ onUnlock }: { onUnlock: (pin: string) => void }) {
   const [pending, start] = useTransition();
   return (
     <section className="card">
-      <p className="eyebrow">Admin</p>
-      <h2>Organiser tools</h2>
-      <p className="muted">
-        PIN keeps the rest of the lads from editing polls and payments.
-      </p>
+      <h2>PIN</h2>
+      <p className="muted">So the rest of the lads can&apos;t mess with polls.</p>
       <form
         className="stack"
         onSubmit={(e) => {
@@ -118,15 +120,18 @@ function WhatsAppPack({ db }: { db: PublicDb }) {
     items.push({ label: `Chase unpaid · ${day}`, text: paymentMessage(db, game) });
     items.push({ label: `Spot free · ${day}`, text: spotFreeMessage(db, game) });
   }
+  for (const game of pastGames(db)) {
+    if (unpaid(game).length === 0) continue;
+    const option = lockedOption(game);
+    const day = option ? formatDay(option.date) : "played";
+    items.push({ label: `Chase unpaid · ${day}`, text: paymentMessage(db, game) });
+  }
   if (next) items.push({ label: "Match day", text: matchDayMessage(db, next) });
   if (items.length === 0) return null;
   return (
     <section className="card">
-      <p className="eyebrow">WhatsApp</p>
       <h2>Paste into the group</h2>
-      <p className="muted">
-        Copy or open WhatsApp. The group stays the chat. This stays the source of truth.
-      </p>
+      <p className="muted">Copy it or fire it into WhatsApp.</p>
       <div className="stack">
         {items.map((item) => (
           <article key={item.label} className="wa-card">
@@ -152,8 +157,7 @@ function LockPanel({ db, pin }: { db: PublicDb; pin: string }) {
     <>
       {polls.map((poll) => (
         <section key={poll.id} className="card">
-          <p className="eyebrow">Book a date</p>
-          <h2>{poll.title}</h2>
+          <h2>Book {pollLabel(poll)}</h2>
           {poll.options.map((option) => {
             const votes = votesForOption(poll, option.id);
             return (
@@ -189,7 +193,6 @@ function LockPanel({ db, pin }: { db: PublicDb; pin: string }) {
 
 function CreatePoll({ pin }: { pin: string }) {
   const router = useRouter();
-  const [title, setTitle] = useState("Next session");
   const [dates, setDates] = useState([
     { date: "", note: "5s and 7s" },
     { date: "", note: "5s and 7s" },
@@ -199,14 +202,13 @@ function CreatePoll({ pin }: { pin: string }) {
 
   return (
     <section className="card">
-      <p className="eyebrow">New poll</p>
-      <h2>Ask the dates</h2>
+      <h2>New poll</h2>
       <form
         className="stack"
         onSubmit={(e) => {
           e.preventDefault();
           start(async () => {
-            const res = await createPoll(pin, { title, dates });
+            const res = await createPoll(pin, { dates });
             setError(res.error ?? null);
             if (!res.error) {
               setDates([
@@ -218,7 +220,6 @@ function CreatePoll({ pin }: { pin: string }) {
           });
         }}
       >
-        <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} />
         {dates.map((row, i) => (
           <div key={i} className="row">
             <input
@@ -259,10 +260,12 @@ function GameAdmin({
   db,
   pin,
   poll: game,
+  past = false,
 }: {
   db: PublicDb;
   pin: string;
   poll: Poll;
+  past?: boolean;
 }) {
   const router = useRouter();
   const option = lockedOption(game);
@@ -272,11 +275,14 @@ function GameAdmin({
   const [pitchError, setPitchError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   if (!option) return null;
+  const owing = (game.squad ?? []).filter((m) => m.status === "dropped" && m.stillOwes);
 
   return (
     <section className="card">
-      <p className="eyebrow">This game</p>
-      <h2>{formatDay(option.date)}</h2>
+      <h2>
+        {formatDay(option.date)}
+        {past ? " · played" : ""}
+      </h2>
       <form
         className="row"
         onSubmit={(e) => {
@@ -317,12 +323,38 @@ function GameAdmin({
             >
               {m.paid ? "paid" : "unpaid"}
             </button>
-            <ActionButton variant="ghost" onClick={() => adminDrop(pin, game.id, m.playerId)}>
-              Drop
-            </ActionButton>
+            {!past && (
+              <ActionButton variant="ghost" onClick={() => adminDrop(pin, game.id, m.playerId)}>
+                Drop
+              </ActionButton>
+            )}
           </li>
         ))}
       </ul>
+      {owing.length > 0 && (
+        <>
+          <h3 className="list-head">Still owe</h3>
+          <ul className="person-list">
+            {owing.map((m) => (
+              <li key={m.playerId} className="person">
+                <span className="person-name">{playerName(db, m.playerId)}</span>
+                <button
+                  type="button"
+                  className="chip chip-warn"
+                  onClick={() =>
+                    start(async () => {
+                      await markPaid(pin, game.id, m.playerId, true);
+                      router.refresh();
+                    })
+                  }
+                >
+                  unpaid
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       {waitlist(game).length > 0 && (
         <>
           <h3 className="list-head">Waitlist</h3>
@@ -333,9 +365,11 @@ function GameAdmin({
                   {playerName(db, m.playerId)}
                   {m.waitlistOrder ? ` · #${m.waitlistOrder}` : ""}
                 </span>
-                <ActionButton variant="ghost" onClick={() => adminDrop(pin, game.id, m.playerId)}>
-                  Drop
-                </ActionButton>
+                {!past && (
+                  <ActionButton variant="ghost" onClick={() => adminDrop(pin, game.id, m.playerId)}>
+                    Drop
+                  </ActionButton>
+                )}
               </li>
             ))}
           </ul>
@@ -347,28 +381,30 @@ function GameAdmin({
         </p>
       )}
 
-      <form
-        className="row mt-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          start(async () => {
-            const res = await addGuest(pin, game.id, guest);
-            setGuestError(res.error ?? null);
-            if (!res.error) setGuest("");
-            router.refresh();
-          });
-        }}
-      >
-        <input
-          className="field"
-          placeholder="Guest name"
-          value={guest}
-          onChange={(e) => setGuest(e.target.value)}
-        />
-        <button className="btn btn-ghost" type="submit" disabled={pending}>
-          Add guest
-        </button>
-      </form>
+      {!past && (
+        <form
+          className="row mt-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            start(async () => {
+              const res = await addGuest(pin, game.id, guest);
+              setGuestError(res.error ?? null);
+              if (!res.error) setGuest("");
+              router.refresh();
+            });
+          }}
+        >
+          <input
+            className="field"
+            placeholder="Guest name"
+            value={guest}
+            onChange={(e) => setGuest(e.target.value)}
+          />
+          <button className="btn btn-ghost" type="submit" disabled={pending}>
+            Add guest
+          </button>
+        </form>
+      )}
       {guestError && <p className="error tiny">{guestError}</p>}
     </section>
   );
@@ -377,8 +413,7 @@ function GameAdmin({
 function PlayersAdmin({ db, pin }: { db: PublicDb; pin: string }) {
   return (
     <section className="card">
-      <p className="eyebrow">Squad list</p>
-      <h2>{db.players.filter((p) => p.active).length} active</h2>
+      <h2>{db.players.filter((p) => p.active).length} names</h2>
       <ul className="person-list">
         {activePlayers(db).map((p) => (
             <li key={p.id} className="person">
@@ -413,8 +448,7 @@ function SettingsForm({ db, pin }: { db: PublicDb; pin: string }) {
   const [pending, start] = useTransition();
   return (
     <section className="card">
-      <p className="eyebrow">Settings</p>
-      <h2>Club, venue and pay</h2>
+      <h2>Venue, bank, PIN</h2>
       <form
         className="stack"
         onSubmit={(e) => {

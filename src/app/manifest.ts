@@ -5,11 +5,11 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: SITE_NAME,
     short_name: SITE_NAME,
-    description: "Vote, see who's in, and pay for 5-a-side.",
+    description: "The 5-a-side group.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0b1a12",
-    theme_color: "#0b1a12",
+    background_color: "#121110",
+    theme_color: "#121110",
     icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
   };
 }

@@ -1,19 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Bebas_Neue, Outfit } from "next/font/google";
+import { Barlow_Condensed, IBM_Plex_Sans } from "next/font/google";
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/brand";
 import "./globals.css";
 
-const outfit = Outfit({
-  variable: "--font-outfit",
+const plex = IBM_Plex_Sans({
+  variable: "--font-plex",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   display: "swap",
   preload: true,
 });
 
-const bebas = Bebas_Neue({
-  variable: "--font-bebas",
-  weight: "400",
+const barlow = Barlow_Condensed({
+  variable: "--font-barlow",
   subsets: ["latin"],
+  weight: ["600", "700", "800"],
   display: "swap",
   preload: true,
 });
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b1a12",
+  themeColor: "#121110",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -39,7 +40,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${outfit.variable} ${bebas.variable} h-full antialiased`}>
+    <html lang="en-GB" className={`${plex.variable} ${barlow.variable} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

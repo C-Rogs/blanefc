@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { initials, isPhoneName, phoneDigits } from "@/lib/format";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { phoneDigits } from "@/lib/format";
 import type { Player } from "@/lib/types";
+import { Crest } from "./Mark";
 
 export function WhoAreYou({
   clubName,
@@ -21,6 +22,18 @@ export function WhoAreYou({
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
+  useEffect(() => {
+    if (!adding) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setAdding(false);
+        setError(null);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [adding]);
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const digits = phoneDigits(needle);
@@ -33,15 +46,16 @@ export function WhoAreYou({
 
   return (
     <div className="screen">
-      <header className="pt-8 pb-6 pr-12">
-        <p className="eyebrow">{clubName}</p>
-        <h1 className="display">Who are you?</h1>
-        <p className="lede">Tap your name or number. No password. Takes two seconds.</p>
+      <header className="picker-head">
+        <div className="brand">
+          <Crest size={34} />
+          <h1 className="club">{clubName}</h1>
+        </div>
       </header>
 
       <input
         className="field"
-        placeholder="Search name or number"
+        placeholder="Name or number"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         autoCapitalize="off"
@@ -62,16 +76,13 @@ export function WhoAreYou({
             disabled={pending}
             onClick={() => onPick(player)}
           >
-            <span className={`avatar${isPhoneName(player.name) ? " phone" : ""}`}>
-              {initials(player.name)}
-            </span>
             <span className="name-card-label">{player.name}</span>
           </button>
         ))}
       </div>
 
       {filtered.length === 0 && (
-        <p className="muted center">No match. Add yourself below.</p>
+        <p className="muted center">Nobody by that name. Add yourself.</p>
       )}
 
       {adding ? (
@@ -93,13 +104,25 @@ export function WhoAreYou({
             autoFocus
           />
           {error && <p className="error">{error}</p>}
-          <button className="btn btn-primary" type="submit" disabled={pending}>
-            {pending ? "Adding..." : "That's me"}
-          </button>
+          <div className="row">
+            <button className="btn btn-primary" type="submit" disabled={pending}>
+              {pending ? "Adding..." : "That's me"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                setAdding(false);
+                setError(null);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
         </form>
       ) : (
         <button type="button" className="btn btn-ghost mt-4" onClick={() => setAdding(true)}>
-          I&apos;m new here
+          Not on the list
         </button>
       )}
     </div>

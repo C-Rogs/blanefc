@@ -8,6 +8,7 @@ import type { Player, PublicDb } from "@/lib/types";
 import { AdminTab } from "./AdminTab";
 import { HelpGuide } from "./HelpGuide";
 import { HomeTab } from "./HomeTab";
+import { Crest } from "./Mark";
 import { SquadTab } from "./SquadTab";
 import { VoteTab } from "./VoteTab";
 import { WhoAreYou } from "./WhoAreYou";
@@ -51,9 +52,11 @@ export function App({ db }: { db: PublicDb }) {
   const [tab, setTab] = useState<Tab>("home");
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- localStorage identity after mount */
     setPlayerId(readLocal(PLAYER_KEY, PLAYER_LEGACY));
     setPin(readLocal(PIN_KEY, PIN_LEGACY));
     setReady(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   const players = activePlayers(db);
@@ -86,8 +89,11 @@ export function App({ db }: { db: PublicDb }) {
       <>
         <HelpGuide spots={db.settings.spots5s} />
         <div className="screen">
-          <p className="eyebrow">{club}</p>
-          <p className="muted">Loading…</p>
+          <div className="brand">
+            <Crest />
+            <p className="club">{club}</p>
+          </div>
+          <p className="muted mt-4">Hang on</p>
         </div>
       </>
     );
@@ -106,14 +112,17 @@ export function App({ db }: { db: PublicDb }) {
     <div className="app">
       <HelpGuide spots={db.settings.spots5s} />
       <header className="topbar">
-        <div>
-          <p className="eyebrow">{club}</p>
-          <p className="who">
-            {player.name}{" "}
-            <button type="button" className="text-btn" onClick={clearPlayer}>
-              Not you?
-            </button>
-          </p>
+        <div className="brand">
+          <Crest />
+          <div>
+            <p className="club">{club}</p>
+            <p className="who">
+              {player.name}{" "}
+              <button type="button" className="text-btn" onClick={clearPlayer}>
+                Not you?
+              </button>
+            </p>
+          </div>
         </div>
       </header>
 

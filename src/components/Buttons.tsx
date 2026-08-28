@@ -87,7 +87,7 @@ export function ActionButton({
               }
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "That didn't save. Tap again.");
+              setError(err instanceof Error ? err.message : "Didn't save. Tap again.");
             }
           })
         }
