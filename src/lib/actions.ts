@@ -57,12 +57,21 @@ export async function renameMe(
   const trimmed = name.trim();
   if (trimmed.length < 2) return { error: "Type a name." };
   if (!playerId) return { error: "Pick a name first." };
-  await updateDb((db) => {
+  const error = await updateDb((db) => {
     const player = db.players.find((p) => p.id === playerId);
-    if (player) player.name = trimmed;
+    if (!player) return "Couldn't find you.";
+    const taken = db.players.find(
+      (p) =>
+        p.active &&
+        p.id !== playerId &&
+        p.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (taken) return "Someone's already using that name.";
+    player.name = trimmed;
+    return undefined;
   });
   revalidatePath("/");
-  return {};
+  return error ? { error } : {};
 }
 
 export async function setVotes(

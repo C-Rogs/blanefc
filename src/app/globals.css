@@ -191,6 +191,20 @@ h3 {
   color: var(--mist);
 }
 
+.who-line {
+  margin: 0;
+}
+
+.rename-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.rename-form .field {
+  font-size: 16px;
+}
+
 .text-btn,
 .link {
   background: none;

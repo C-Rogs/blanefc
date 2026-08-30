@@ -120,7 +120,8 @@ export function HelpGuide({
             <div className="help-body">
               <p className="lede">
                 Use your own phone. WhatsApp&apos;s in-app browser forgets you, so you might
-                have to pick your name again.
+                have to pick your name again. Signed in with a number? Tap <strong>Change name</strong>{" "}
+                at the top.
               </p>
 
               <h3>How it works</h3>

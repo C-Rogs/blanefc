@@ -11,6 +11,7 @@ import { HomeTab } from "./HomeTab";
 import { Crest } from "./Mark";
 import { SquadTab } from "./SquadTab";
 import { VoteTab } from "./VoteTab";
+import { RenameMe } from "./RenameMe";
 import { WhoAreYou } from "./WhoAreYou";
 
 const PLAYER_KEY = "bf_player_id";
@@ -116,12 +117,20 @@ export function App({ db }: { db: PublicDb }) {
           <Crest />
           <div>
             <p className="club">{club}</p>
-            <p className="who">
-              {player.name}{" "}
-              <button type="button" className="text-btn" onClick={clearPlayer}>
-                Not you?
-              </button>
-            </p>
+            <div className="who">
+              <p className="who-line">
+                {player.name}{" "}
+                <RenameMe
+                  playerId={player.id}
+                  currentName={player.name}
+                  onRenamed={() => router.refresh()}
+                />
+                {" · "}
+                <button type="button" className="text-btn" onClick={clearPlayer}>
+                  Not you?
+                </button>
+              </p>
+            </div>
           </div>
         </div>
       </header>
