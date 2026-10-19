@@ -146,7 +146,8 @@ export function HelpGuide({
                   First {spots} on the winning date are in. After that, waitlist.
                 </li>
                 <li>
-                  Waitlist #1 gets an open spot. Nobody jumps the queue.
+                  Waitlist #1 gets an open spot. Nobody jumps the queue. Can&apos;t wait?{" "}
+                  <strong>Take me off</strong>. You don&apos;t pay.
                 </li>
                 <li>
                   Drop if you can&apos;t make it. If nobody takes the spot, you still pay.

@@ -333,27 +333,28 @@ function PlayerActions({
   }
 
   if (mine?.status === "waitlist") {
-    if (spotsLeft > 0 && mine.waitlistOrder === 1) {
-      return (
-        <ActionButton variant="lime" onClick={() => takeSpot(playerId, poll.id)}>
-          I&apos;ll take it
-        </ActionButton>
-      );
-    }
-    if (spotsLeft > 0) {
-      return (
-        <p className="muted">
-          {nextWaitName ? `${nextWaitName} is first.` : "Waitlist goes first."} You&apos;re #
-          {mine.waitlistOrder}.
-        </p>
-      );
-    }
     return (
-      <p className="muted">
-        {mine.waitlistOrder === 1
-          ? "If someone drops, you're next."
-          : `You're #${mine.waitlistOrder} on the waitlist.`}
-      </p>
+      <div className="stack">
+        {spotsLeft > 0 && mine.waitlistOrder === 1 ? (
+          <ActionButton variant="lime" onClick={() => takeSpot(playerId, poll.id)}>
+            I&apos;ll take it
+          </ActionButton>
+        ) : spotsLeft > 0 ? (
+          <p className="muted">
+            {nextWaitName ? `${nextWaitName} is first.` : "Waitlist goes first."} You&apos;re #
+            {mine.waitlistOrder}.
+          </p>
+        ) : (
+          <p className="muted">
+            {mine.waitlistOrder === 1
+              ? "If someone drops, you're next."
+              : `You're #${mine.waitlistOrder} on the waitlist.`}
+          </p>
+        )}
+        <ActionButton variant="ghost" onClick={() => dropOut(playerId, poll.id)}>
+          Take me off
+        </ActionButton>
+      </div>
     );
   }
 
