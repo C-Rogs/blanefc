@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addPlayer } from "@/lib/actions";
-import { activePlayers } from "@/lib/logic";
+import { activePlayers, openPolls, playerVotes } from "@/lib/logic";
 import type { Player, PublicDb } from "@/lib/types";
 import { AdminTab } from "./AdminTab";
 import { HelpGuide } from "./HelpGuide";
@@ -84,6 +84,9 @@ export function App({ db }: { db: PublicDb }) {
   }
 
   const club = db.settings.clubName;
+  const voteAlert = Boolean(
+    player && openPolls(db).some((poll) => playerVotes(poll, player.id).length === 0),
+  );
 
   if (!ready) {
     return (
@@ -157,7 +160,12 @@ export function App({ db }: { db: PublicDb }) {
 
       <nav className="dock">
         <DockButton label="Home" active={tab === "home"} onClick={() => setTab("home")} />
-        <DockButton label="Vote" active={tab === "vote"} onClick={() => setTab("vote")} />
+        <DockButton
+          label="Vote"
+          active={tab === "vote"}
+          dot={voteAlert}
+          onClick={() => setTab("vote")}
+        />
         <DockButton label="Squad" active={tab === "squad"} onClick={() => setTab("squad")} />
         <DockButton label="Admin" active={tab === "admin"} onClick={() => setTab("admin")} />
       </nav>
@@ -168,15 +176,26 @@ export function App({ db }: { db: PublicDb }) {
 function DockButton({
   label,
   active,
+  dot = false,
   onClick,
 }: {
   label: string;
   active: boolean;
+  dot?: boolean;
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={`dock-btn ${active ? "on" : ""}`} aria-current={active ? "page" : undefined} onClick={onClick}>
-      {label}
+    <button
+      type="button"
+      className={`dock-btn ${active ? "on" : ""}`}
+      aria-current={active ? "page" : undefined}
+      aria-label={dot ? `${label}, not voted yet` : undefined}
+      onClick={onClick}
+    >
+      <span className="dock-label">
+        {label}
+        {dot && <span className="dock-dot" aria-hidden />}
+      </span>
     </button>
   );
 }
